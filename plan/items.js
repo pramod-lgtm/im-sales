@@ -7,7 +7,9 @@ window.PLAN={date:"2026-10-13",sections:[
 "P1 Implement Work Tracker, Sales Tracker, Store Performance Tracker",
 "P2 Social media & ads plan meeting with Abhishek, then approve Google Ads budget and Insta/FB creatives",
 "P2 Reply to Vishal on Nykd discount (30.48%+5% up to 699 / 33.33%+5% from 799)",
-"Prepare for Wed 14 Oct 11 AM meeting with Anand at Elan"]},
+"Prepare for Wed 14 Oct 11 AM meeting with Anand at Elan",
+"Jockey discussion",
+"Finalise discussion points for tomorrow's meeting with Anand at Elan (Wed 14 Oct, 11 AM)"]},
 {title:"Follow up: Abhishek",items:[
 "P1 DN 2627/Ho/Pr/56 K.S.Selection correction (taxable ₹18,447 less, affects Sept GST)",
 "P1 Online reco all platforms incl. Shopify return ₹593 (In26271658) + Razorpay KYC status",
