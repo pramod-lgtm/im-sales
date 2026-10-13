@@ -1,0 +1,2 @@
+{"name":"IM Delivery","short_name":"IM Delivery","description":"Intimissi delivery driver & dispatch app","start_url":"./","scope":"./","display":"standalone","background_color":"#7a1f4b","theme_color":"#7a1f4b",
+"icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}
