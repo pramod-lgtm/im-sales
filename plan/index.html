@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pramod's Day Plan</title><meta name="theme-color" content="#7a1f4b">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#faf5f8;color:#222}header{background:#7a1f4b;color:#fff;padding:16px}h1{margin:0;font-size:20px}.sub{opacity:.85;font-size:13px;margin-top:4px}
+main{padding:12px;max-width:640px;margin:auto}section{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:12px;box-shadow:0 1px 3px #0001}h2{font-size:15px;color:#7a1f4b;margin:4px 0 6px;display:flex;justify-content:space-between}
+label{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #eee;font-size:15px;transition:opacity .4s,max-height .4s;overflow:hidden;max-height:120px}label:first-of-type{border-top:0}input{width:22px;height:22px;flex:none;accent-color:#7a1f4b}
+.gone{opacity:0;max-height:0;padding:0}.p1{color:#b00020;font-weight:600}button{background:none;border:1px solid #7a1f4b;color:#7a1f4b;border-radius:8px;padding:8px 12px;margin:8px 0}.done{text-align:center;padding:40px;color:#777}</style></head>
+<body><header><h1>Day plan</h1><div class="sub" id="sub"></div></header><main id="m"></main>
+<script src="items.js?v=20261013"></script><script>
+var P=window.PLAN,K="plan-done-"+P.date,done=JSON.parse(localStorage.getItem(K)||"[]");
+function id(s,i){return s+"|"+i}
+function render(){var m=document.getElementById("m");m.innerHTML="";var left=0,total=0;
+P.sections.forEach(function(s){var open=s.items.filter(function(t){return done.indexOf(id(s.title,t))<0});total+=s.items.length;left+=open.length;if(!open.length)return;
+var sec=document.createElement("section");sec.innerHTML="<h2><span>"+s.title+"</span><span>"+open.length+"</span></h2>";
+open.forEach(function(t){var l=document.createElement("label"),c=document.createElement("input");c.type="checkbox";
+var sp=document.createElement("span");var m2=t.match(/^(P\d)\s(.*)$/);sp.innerHTML=m2?'<span class="'+(m2[1]=="P1"?"p1":"")+'">'+m2[1]+"</span> "+m2[2].replace(/</g,"&lt;"):t.replace(/</g,"&lt;");
+c.onchange=function(){done.push(id(s.title,t));localStorage.setItem(K,JSON.stringify(done));l.classList.add("gone");setTimeout(render,450)};l.appendChild(c);l.appendChild(sp);sec.appendChild(l)});m.appendChild(sec)});
+document.getElementById("sub").textContent=new Date(P.date+"T00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"short"})+" · "+left+" of "+total+" left";
+if(!left)m.innerHTML='<div class="done">All done for today 🎉</div>';
+if(done.length){var b=document.createElement("button");b.textContent="Undo last tick";b.onclick=function(){done.pop();localStorage.setItem(K,JSON.stringify(done));render()};m.appendChild(b)}}
+render();</script></body></html>
