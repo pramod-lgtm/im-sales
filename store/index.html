@@ -271,7 +271,7 @@ function route() {
   for (var i = 0; i < ROUTES.length; i++) {
     var m = p.match(ROUTES[i].re);
     if (m) {
-      if (ROUTES[i].perm && !can(ROUTES[i].perm)) { $app.innerHTML = '<div class="card center"><h2>Not allowed</h2><p class="muted">This page is not for your role.</p><a href="#" data-go="/">Home</a></div>'; return; }
+      if (ROUTES[i].perm && !can(ROUTES[i].perm)) { return go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); }
       window.scrollTo(0, 0);
       return Promise.resolve(ROUTES[i].fn.apply(null, m.slice(1).map(decodeURIComponent))).catch(fail);
     }
@@ -381,7 +381,7 @@ on(/^\/login$/, function () {
     '<button class="primary block big">Sign in</button></form><p class="muted small center">Forgot password? Ask the owner to reset it.</p></div></div>';
   $('lf').onsubmit = function (e) {
     e.preventDefault(); var b = e.target.querySelector('button'); b.disabled = true; b.textContent = 'Signing in…';
-    call('login', formData(e.target)).then(function (r) { S.token = r.token; store.setItem('ims_token', r.token); bridgeSave(r.token); return boot(); })
+    call('login', formData(e.target)).then(function (r) { S.token = r.token; store.setItem('ims_token', r.token); bridgeSave(r.token); history.replaceState(null, '', location.pathname + location.search + '#/login'); return boot(); })
       .catch(function (err) { b.disabled = false; b.textContent = 'Sign in'; fail(err); });
   };
 });
