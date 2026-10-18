@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IM Warehouse</title>
+<meta name="theme-color" content="#7a1f4b">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="IM Warehouse">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{--brand:#7a1f4b;--brand2:#b8336a;--ink:#1d1a22;--muted:#6f6876;--line:#ebe6ee;--bg:#faf6f8;--card:#fff;--good:#1f8a5b;--mid:#c98a12;--low:#c4384b}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;color:var(--ink);background:var(--bg);font-size:15px;line-height:1.45;padding-bottom:76px}
+a{color:var(--brand)}
+.topbar{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:linear-gradient(90deg,var(--brand),var(--brand2));color:#fff}
+.topbar b{flex:1;font-size:1.05rem}.topbar small{opacity:.85}
+.logo{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#fff;color:var(--brand);font-weight:800;font-size:.8rem}
+main{max-width:860px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+h2{font-size:1.1rem;margin:4px 0 10px}h3{font-size:1rem;margin:0 0 6px}
+.muted{color:var(--muted)}.small{font-size:.85rem}.center{text-align:center}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1 1 auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+button,.btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:12px;padding:11px 14px;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.primary{background:var(--brand);border-color:var(--brand);color:#fff}.good{background:var(--good);border-color:var(--good);color:#fff}.danger{background:var(--low);border-color:var(--low);color:#fff}.warn{background:var(--mid);border-color:var(--mid);color:#fff}
+button:disabled{opacity:.5}.big{width:100%;padding:15px;font-size:17px}.sm{padding:6px 10px;font-size:13px;border-radius:9px}
+label{display:block;font-size:.85rem;color:var(--muted);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:11px;border:1px solid #d9d2dd;border-radius:10px;font-size:16px;background:#fff;font-family:inherit}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}.kpi b{display:block;font-size:1.35rem}.kpi span{font-size:.78rem;color:var(--muted)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.75rem;font-weight:700;background:#eee}
+.st-pending{background:#eee}.st-arrived{background:#fff1c9}.st-delivered{background:#d8f3e5;color:#166b45}.st-partial{background:#ffe7c2;color:#8a5a00}.st-failed{background:#fde0e4;color:#a02334}
+.stop{border-left:5px solid var(--line)}.stop.st-delivered{border-left-color:var(--good)}.stop.st-failed{border-left-color:var(--low)}.stop.st-partial{border-left-color:var(--mid)}.stop.st-arrived{border-left-color:#e6b800}
+.seq{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;font-weight:700;margin-right:6px}
+table{width:100%;border-collapse:collapse;font-size:.86rem}th,td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}
+.tw{overflow-x:auto}
+.bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:1000;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.bottomnav a{flex:1;text-align:center;padding:7px 2px;font-size:.7rem;color:var(--muted);text-decoration:none}.bottomnav a i{display:block;font-style:normal;font-size:1.25rem}.bottomnav a.on{color:var(--brand);font-weight:700}
+.toast{position:fixed;left:12px;right:12px;bottom:86px;z-index:2000;padding:12px 14px;border-radius:12px;color:#fff;background:#222;text-align:center}.toast.err{background:var(--low)}.toast.ok{background:var(--good)}
+.hidden{display:none!important}
+.loading{position:fixed;top:0;left:0;right:0;height:3px;z-index:3000;background:linear-gradient(90deg,var(--brand),#f3a6c8,var(--brand));background-size:200% 100%;animation:ld 1s linear infinite}@keyframes ld{to{background-position:-200% 0}}
+#map{height:62vh;border-radius:14px}
+.tracking{background:#e9f8ef;border:1px solid #bfe6cf;color:#166b45;border-radius:10px;padding:8px 10px;font-size:.85rem}
+.sheet{position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,.45);display:flex;align-items:flex-end}.sheet>div{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;max-width:860px;margin:0 auto}
+canvas.sign{width:100%;height:150px;border:1px dashed #bbb;border-radius:10px;touch-action:none;background:#fff}
+pre.wa{white-space:pre-wrap;background:#effae9;border:1px solid #d3ecc6;padding:12px;border-radius:12px;font-size:.85rem;font-family:inherit}
+.chk{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line)}.chk input{width:22px;height:22px;flex:none}
+.tl{list-style:none;padding:0;margin:0}.tl li{position:relative;padding:6px 0 10px 30px;border-left:2px solid var(--line);margin-left:10px}.tl li:before{content:"";position:absolute;left:-9px;top:8px;width:16px;height:16px;border-radius:50%;background:#ddd;border:2px solid #fff}
+.tl li.done:before{background:var(--good)}.tl li.now:before{background:var(--mid)}
+.st-new{background:#eee}.st-allocated{background:#e6ecff}.st-picked{background:#fff1c9}.st-checked{background:#ffe7c2}.st-billed{background:#e2f0ff;color:#1b4f8a}.st-packed{background:#d8f3e5;color:#166b45}.st-dispatched{background:#cfe9da;color:#0f5133}.st-hold{background:#fde0e4;color:#a02334}
+.short{color:var(--low);font-weight:700}
+</style>
+</head>
+<body>
+<div id="loading" class="loading hidden"></div>
+<header class="topbar"><span class="logo">IM</span><b id="title">IM Warehouse</b><small id="who"></small></header>
+<main id="view"></main>
+<nav id="nav" class="bottomnav hidden"></nav>
+<div id="toast" class="toast hidden"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});</script>
+</body>
+</html>
