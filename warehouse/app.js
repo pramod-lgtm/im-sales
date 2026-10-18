@@ -30,6 +30,10 @@ function role() { return S.user && S.user.role; }
 function isMgr() { return role() === 'admin' || role() === 'warehouse_manager'; }
 function can(p) { var P = { view: ['admin', 'warehouse_manager'], bills: ['admin', 'warehouse_manager', 'biller'], hold: ['admin', 'warehouse_manager', 'biller'], delivery: ['admin', 'warehouse_manager', 'dispatch'], sync: ['admin', 'warehouse_manager', 'biller'], manage: ['admin'] }; return (P[p] || []).indexOf(role()) >= 0; }
 function stageLbl(s) { return (S.m && S.m.stage_label[s]) || s; }
+function ono(o) { return o.order_no || (/^W-/.test(o.src_id) ? o.src_id : '#' + o.id); }
+function srcOf(o) { return o.source || 'Sales Tracker'; }
+function canNew() { return ['admin', 'warehouse_manager', 'dispatch'].indexOf(role()) >= 0; }
+function badges(o) { return ' <span class="pill src">' + h(srcOf(o)) + '</span>' + (o.priority === 'Urgent' ? ' <span class="pill st-hold">URGENT</span>' : ''); }
 function pill(o) { return '<span class="pill st-' + h(o.stage) + '">' + h(stageLbl(o.stage)) + '</span>' + (Number(o.hold) ? ' <span class="pill st-hold">HOLD</span>' : ''); }
 function csv(rows, name) {
   if (!rows.length) return toast('Kuch data nahi', 'err'); var keys = Object.keys(rows[0]);
@@ -54,6 +58,8 @@ function route() {
   if (p === '/login') return vLogin(v); if (p === '/setup') return vSetup(v);
   masters().then(function () {
     if (p.indexOf('/o/') === 0) return vOrder(v, Number(p.slice(3)));
+    if (p === '/new') return vNew(v, null);
+    if (p.indexOf('/edit/') === 0) return call('order', { id: Number(p.slice(6)) }).then(function (r) { vNew(v, r.order); }).catch(fail);
     var f = { '/q': vQueue, '/all': vAll, '/cl': vClusters, '/bills': vBills, '/disp': vDisp, '/dash': vDash, '/dl': vDealers, '/admin': vAdmin }[p] || vQueue; f(v);
   }).catch(fail);
 }
@@ -73,13 +79,14 @@ function vSetup(v) {
 
 // ---------------- lists
 function card(o) {
-  return '<a class="card" style="display:block;text-decoration:none;color:inherit" href="#/o/' + o.id + '"><div class="row"><b>#' + o.id + ' ' + h(o.dealer_name) + '</b><span style="flex:0">' + pill(o) + '</span></div>' +
-    '<div class="small muted">' + h(dmy(o.order_date)) + ' • ' + (o.zone ? '<b>' + h(o.zone) + '</b> / ' : '') + h(o.area || 'area ?') + (o.route ? ' • ' + h(o.route) : '') + (o.beat_day ? ' • beat ' + h(o.beat_day) : '') + ' • ' + h(o.salesman) + '</div>' +
+  return '<a class="card" style="display:block;text-decoration:none;color:inherit" href="#/o/' + o.id + '"><div class="row"><b>' + h(ono(o)) + ' ' + h(o.dealer_name) + '</b><span style="flex:0;white-space:nowrap">' + pill(o) + badges(o) + '</span></div>' +
+    '<div class="small muted">' + h(dmy(o.order_date)) + ' • ' + (o.zone ? '<b>' + h(o.zone) + '</b> / ' : '') + h(o.area || 'area ?') + (o.route ? ' • ' + h(o.route) : '') + (o.beat_day ? ' • beat ' + h(o.beat_day) : '') + (o.salesman ? ' • ' + h(o.salesman) : '') + (o.taken_by ? ' • liya: ' + h(o.taken_by) : '') + (o.expected_date ? ' • exp ' + h(dmy(o.expected_date)) : '') + '</div>' +
     '<div class="small">' + (o.lines || []).map(function (l) { return h(l.brand) + ' ' + inr(l.ordered_value) + (l.ordered_qty !== '' ? ' (' + l.ordered_qty + ' pcs)' : ''); }).join(' + ') +
     [['P', o.picker_name], ['C', o.checker_name], ['B', o.biller_name], ['Pk', o.packer_name]].filter(function (x) { return x[1]; }).map(function (x) { return ' • ' + x[0] + ': ' + h(x[1]); }).join('') + (o.invoice_no ? ' • Inv ' + h(o.invoice_no) : '') + (o.vehicle || o.delivery_mode ? ' • ' + h(o.vehicle || o.delivery_mode) : '') + '</div>' +
-    (Number(o.hold) ? '<div class="small short">Hold: ' + h(o.hold_reason) + ' ' + h(o.hold_note) + '</div>' : '') + '</a>';
+    (Number(o.hold) ? '<div class="small short">Hold: ' + h(o.hold_reason) + ' ' + h(o.hold_note) + '</div>' : '') + (o.stage === 'cancelled' ? '<div class="small short">Cancel: ' + h(o.cancel_reason) + '</div>' : '') + '</a>';
 }
-function syncBtn() { return can('sync') ? '<button class="sm" id="sync">🔄 Sync now</button>' : ''; }
+function newBtn() { return canNew() ? '<button class="sm primary" onclick="location.hash=\'#/new\'">+ New order</button>' : ''; }
+function syncBtn() { return newBtn() + (can('sync') ? '<button class="sm" id="sync">🔄 Sync now</button>' : ''); }
 function bindSync(after) { var b = $('sync'); if (b) b.onclick = function () { call('syncNow').then(function (r) { toast('Sync: ' + r.new_orders + ' naye orders, ' + r.dealers_added + ' naye dealers'); S.m = null; after(); }).catch(fail); }; }
 function vQueue(v) {
   call('orders', {}).then(function (list) {
@@ -89,14 +96,14 @@ function vQueue(v) {
 }
 function vAll(v) {
   call('orders', { all: 1 }).then(function (list) {
-    var st = LS.getItem('imw_f') || '';
+    var st = LS.getItem('imw_f') || '', sf = LS.getItem('imw_sf') || '';
     function draw() {
-      var f = list.filter(function (o) { return !st || (st === 'hold' ? Number(o.hold) : o.stage === st); }), q = (val('q') || '').toUpperCase();
-      if (q) f = f.filter(function (o) { return (o.dealer_name + ' ' + o.area + ' ' + o.route + ' ' + o.invoice_no).toUpperCase().indexOf(q) >= 0; });
+      var f = list.filter(function (o) { return (!st || (st === 'hold' ? Number(o.hold) : o.stage === st)) && (!sf || srcOf(o) === sf); }), q = (val('q') || '').toUpperCase();
+      if (q) f = f.filter(function (o) { return (ono(o) + ' ' + o.dealer_name + ' ' + o.zone + ' ' + o.area + ' ' + o.route + ' ' + o.invoice_no).toUpperCase().indexOf(q) >= 0; });
       $('lst').innerHTML = f.map(card).join('') || '<div class="card center muted">Kuch nahi</div>';
     }
-    v.innerHTML = '<div class="row"><h2>Sab orders</h2>' + syncBtn() + '<button class="sm" id="ex">CSV</button></div><div class="row"><select id="st"><option value="">Sab stage</option>' + S.m.stages.map(function (s) { return '<option value="' + s + '"' + (st === s ? ' selected' : '') + '>' + h(stageLbl(s)) + '</option>'; }).join('') + '<option value="hold"' + (st === 'hold' ? ' selected' : '') + '>HOLD</option></select><input id="q" placeholder="Dealer / area / invoice"></div><div id="lst" style="margin-top:10px"></div>';
-    $('st').onchange = function () { st = this.value; LS.setItem('imw_f', st); draw(); }; $('q').oninput = draw; draw(); bindSync(function () { vAll(v); });
+    v.innerHTML = '<div class="row"><h2>Sab orders</h2>' + syncBtn() + '<button class="sm" id="ex">CSV</button></div><div class="row"><select id="st"><option value="">Sab stage</option>' + S.m.stages.map(function (s) { return '<option value="' + s + '"' + (st === s ? ' selected' : '') + '>' + h(stageLbl(s)) + '</option>'; }).join('') + '<option value="hold"' + (st === 'hold' ? ' selected' : '') + '>HOLD</option><option value="cancelled"' + (st === 'cancelled' ? ' selected' : '') + '>Cancel</option></select><select id="sf"><option value="">Sab source</option>' + ['Sales Tracker'].concat(S.m.sources || []).map(function (x) { return '<option' + (x === sf ? ' selected' : '') + '>' + h(x) + '</option>'; }).join('') + '</select><input id="q" placeholder="Order no / dealer / area / invoice"></div><div id="lst" style="margin-top:10px"></div>';
+    $('st').onchange = function () { st = this.value; LS.setItem('imw_f', st); draw(); }; $('sf').onchange = function () { sf = this.value; LS.setItem('imw_sf', sf); draw(); }; $('q').oninput = draw; draw(); bindSync(function () { vAll(v); });
     $('ex').onclick = function () { call('exportOrders').then(function (r) { csv(r, 'warehouse-orders'); }).catch(fail); };
   }).catch(fail);
 }
@@ -107,8 +114,8 @@ var STEP_ROLES = { allocate: ['admin', 'warehouse_manager'], pick: ['admin', 'wa
 var NEXT = { new: 'allocate', allocated: 'pick', picked: 'check', checked: 'bill', billed: 'pack', packed: 'dispatch' };
 function vOrder(v, id) {
   call('order', { id: id }).then(function (r) {
-    var o = r.order, nx = NEXT[o.stage], mine = nx && STEP_ROLES[nx].indexOf(role()) >= 0 && !Number(o.hold), si = S.m.stages.indexOf(o.stage);
-    var tl = '<ul class="tl"><li class="done"><b>Order aaya</b> <span class="small muted">' + h(dmy(o.order_date)) + ' • ' + h(o.salesman) + ' (Sales Tracker #' + h(o.src_id) + ')</span></li>' + STEPS.map(function (s, i) {
+    var o = r.order, manEdit = canNew() && /^W-/.test(o.src_id) && o.stage !== 'cancelled' && !o.invoice_no && S.m.stages.indexOf(o.stage) < S.m.stages.indexOf('billed'), nx = NEXT[o.stage], mine = nx && STEP_ROLES[nx].indexOf(role()) >= 0 && !Number(o.hold), si = S.m.stages.indexOf(o.stage);
+    var tl = '<ul class="tl"><li class="done"><b>Order aaya</b> <span class="small muted">' + h(dmy(o.order_date)) + ' • ' + h(o.salesman) + ' (' + (/^W-/.test(o.src_id) ? h(srcOf(o)) + ', liya ' + h(o.taken_by) : 'Sales Tracker #' + h(o.src_id)) + ')</span></li>' + STEPS.map(function (s, i) {
       var done = !!o[s[1]], extra = '';
       if (s[0] === 'allocate' && done) extra = ' → Picker ' + h(o.picker_name || '-') + ', Checker ' + h(o.checker_name || '-') + ', Biller ' + h(o.biller_name || '-') + ', Packer ' + h(o.packer_name || '-');
       var nm = { pick: o.picker_name, check: o.checker_name, bill: o.biller_name, pack: o.packer_name, dispatch: o.dispatch_name }[s[0]];
@@ -137,7 +144,10 @@ function vOrder(v, id) {
     var del = '';
     if (can('delivery') && si >= S.m.stages.indexOf('billed') && o.stage !== 'dispatched') del = '<div class="card"><h3>Delivery allocation</h3>' + delForm(o) + '<button class="primary big" id="delb" style="margin-top:10px">Save delivery</button></div>';
     var nb = r.nearby.length ? '<div class="card"><h3>Paas ke pending orders (' + r.nearby.length + ')</h3><p class="small muted">Inhe saath mein bill / dispatch karein.</p>' + r.nearby.map(function (x) { return '<div class="chk"><a href="#/o/' + x.id + '">#' + x.id + ' ' + h(x.dealer_name) + '</a><span class="small muted">' + h(x.why) + (x.km !== '' ? ' • ' + x.km + ' km' : '') + ' • ' + h(stageLbl(x.stage)) + (Number(x.hold) ? ' • HOLD' : '') + ' • ' + inr(x.ordered_value) + (x.zone ? ' • ' + h(x.zone) : '') + '</span></div>'; }).join('') + '</div>' : '';
-    v.innerHTML = '<div class="card"><div class="row"><h2>#' + o.id + ' ' + h(o.dealer_name) + '</h2><span style="flex:0">' + pill(o) + '</span></div><div class="small muted">Zone ' + h(o.zone || '-') + ' • ' + h(o.area || 'area ?') + ' • ' + h(o.route || '-') + (o.beat_day ? ' • beat ' + h(o.beat_day) : '') + (o.lat !== '' ? ' • <a target="_blank" href="https://www.google.com/maps?q=' + o.lat + ',' + o.lng + '">map</a>' : '') + '</div>' + (o.remarks ? '<div class="small">Remark: ' + h(o.remarks) + '</div>' : '') + '</div>' +
+    v.innerHTML = '<div class="card"><div class="row"><h2>' + h(ono(o)) + ' ' + h(o.dealer_name) + '</h2><span style="flex:0;white-space:nowrap">' + pill(o) + badges(o) + '</span></div><div class="small muted">Zone ' + h(o.zone || '-') + ' • ' + h(o.area || 'area ?') + ' • ' + h(o.route || '-') + (o.beat_day ? ' • beat ' + h(o.beat_day) : '') + (o.lat !== '' ? ' • <a target="_blank" href="https://www.google.com/maps?q=' + o.lat + ',' + o.lng + '">map</a>' : '') + '</div>' + (o.remarks ? '<div class="small">Remark: ' + h(o.remarks) + '</div>' : '') +
+      '<div class="small muted">Source: ' + h(srcOf(o)) + (o.taken_by ? ' • liya: ' + h(o.taken_by) : '') + (o.salesman ? ' • salesman: ' + h(o.salesman) : '') + (o.expected_date ? ' • expected dispatch ' + h(dmy(o.expected_date)) : '') + (o.edited_at ? ' • edited ' + tm(o.edited_at) + ' ' + h(o.edited_by) : '') + '</div>' +
+      (o.stage === 'cancelled' ? '<div class="short">Cancel: ' + h(o.cancel_reason) + ' (' + tm(o.cancelled_at) + ', ' + h(o.cancelled_by) + ')</div>' : '') +
+      (manEdit ? '<div class="row" style="margin-top:8px"><a class="btn sm" href="#/edit/' + o.id + '">✏️ Edit</a><button class="sm danger" id="cnl">Cancel order</button></div>' : '') + '</div>' +
       (isMgr() ? '<details class="card"><summary><b>Area / zone badlein</b></summary>' + dlists() + '<div class="grid2"><div><label>Zone</label><input id="oz" list="dl_zone" value="' + h(o.zone) + '"></div><div><label>Area</label><input id="oa" list="dl_area" value="' + h(o.area) + '"></div></div><label>Route</label><input id="or" list="dl_route" value="' + h(o.route) + '"><p class="small muted">Dealer master aur uske open orders mein bhi update hoga. Sync isse overwrite nahi karega.</p><button class="primary" id="oas">Save</button></details>' : '') + '<div class="card"><h3>Items</h3>' + lines + '</div><div class="card"><h3>Timeline</h3>' + tl + act + '</div>' + hold + del + nb;
     var b = $('stepb'); if (b) b.onclick = function () {
       var d = { id: o.id, action: nx };
@@ -150,6 +160,7 @@ function vOrder(v, id) {
       if (nx === 'pack') d.boxes = val('bx');
       call('step', d).then(function () { toast('Ho gaya ✔'); vOrder(v, id); }).catch(fail);
     };
+    if ($('cnl')) $('cnl').onclick = function () { var why = prompt('Cancel ka reason?'); if (!why) return; call('cancelOrder', { id: o.id, reason: why }).then(function () { toast('Cancel ho gaya'); vOrder(v, id); }).catch(fail); };
     if ($('oas')) $('oas').onclick = function () { call('orderArea', { id: o.id, zone: val('oz'), area: val('oa'), route: val('or') }).then(function () { S.dl = null; toast('Saved'); vOrder(v, id); }).catch(fail); };
     if (isMgr() && !S.dl) loadDealers().then(function () { var e = $('dlbox'); if (e) e.outerHTML = dlists(); }).catch(function () {});
     if ($('saveq')) $('saveq').onclick = function () { var ls = []; Array.prototype.forEach.call(document.querySelectorAll('.oq'), function (i) { ls.push({ id: i.dataset.id, ordered_qty: i.value }); }); call('setLines', { id: o.id, lines: ls }).then(function () { toast('Saved'); vOrder(v, id); }).catch(fail); };
@@ -274,6 +285,41 @@ function loadUm() {
   }).catch(fail);
 }
 
+// ---------------- new / edit manual order
+var BRANDS = ['TRYLO', 'C9', 'OS'];
+function vNew(v, ed) {
+  if (!canNew()) return go('/q');
+  loadDealers().then(function (list) {
+    var sel = ed ? list.filter(function (d) { return String(d.src_id) === String(ed.dealer_src_id); })[0] || { id: '', name: ed.dealer_name } : null, lines = ed ? ed.lines.map(function (l) { return { brand: l.brand, item: l.item, qty: l.ordered_qty, value: l.ordered_value }; }) : [{ brand: 'TRYLO' }];
+    v.innerHTML = '<h2>' + (ed ? 'Edit ' + h(ono(ed)) : 'New order (phone / WhatsApp / walk-in)') + '</h2>' + dlists() + '<datalist id="dl_brand">' + BRANDS.map(function (b) { return '<option value="' + b + '">'; }).join('') + '</datalist>' +
+      '<div class="card"><label>Dealer</label><div id="dsel"></div><input id="ds" placeholder="Dealer ka naam search karein"' + (ed && ed.picked_at ? '' : '') + '><div id="dres"></div>' + (ed ? '' : '<label class="chk"><input type="checkbox" id="nd"> Naya dealer add karein</label><div id="ndf" class="hidden grid2"><div><label>Naam</label><input id="ndn"></div><div><label>Mobile</label><input id="ndm" inputmode="tel"></div><div><label>Area</label><input id="nda" list="dl_area"></div><div><label>Zone</label><input id="ndz" list="dl_zone"></div></div>') + '</div>' +
+      '<div class="card"><div class="grid2"><div><label>Source</label><select id="src">' + S.m.sources.map(function (x) { return '<option' + (ed && ed.source === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div><div><label>Priority</label><select id="pri">' + S.m.priorities.map(function (x) { return '<option' + (ed && ed.priority === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>' +
+      '<div><label>Order kisne liya (taken by)</label><input id="tb" value="' + h(ed ? ed.taken_by : S.user.name) + '"></div><div><label>Salesman (optional)</label><input id="sm" value="' + h(ed ? ed.salesman : '') + '"></div>' +
+      '<div><label>Expected dispatch date</label><input id="exd" type="date" value="' + h(ed ? ed.expected_date : '') + '"></div></div></div>' +
+      '<div class="card"><h3>Items</h3><div id="lns"></div><button class="sm" id="al">+ Line</button><div class="small muted" id="tot"></div></div>' +
+      '<div class="card"><label>Remarks</label><textarea id="rm" rows="2">' + h(ed ? ed.remarks : '') + '</textarea></div><button class="primary big" id="sv">' + (ed ? 'Save changes' : 'Order banayein') + '</button>';
+    function showSel() { $('dsel').innerHTML = sel ? '<div class="chk"><b style="flex:1">' + h(sel.name) + '</b><span class="small muted">' + h(sel.zone || '') + ' ' + h(sel.area || '') + '</span></div>' : '<span class="small muted">Koi dealer nahi chuna</span>'; }
+    $('ds').oninput = function () { var q = val('ds').toUpperCase(); $('dres').innerHTML = q.length < 2 ? '' : list.filter(function (d) { return d.name.toUpperCase().indexOf(q) >= 0 || String(d.mobile).indexOf(q) >= 0; }).slice(0, 12).map(function (d) { return '<div class="chk" data-pick="' + d.id + '" style="cursor:pointer"><span style="flex:1">' + h(d.name) + '</span><span class="small muted">' + h(d.zone || '') + ' ' + h(d.area || '') + '</span></div>'; }).join('') || '<p class="small muted">Nahi mila. Naya dealer add karein.</p>';
+      Array.prototype.forEach.call(document.querySelectorAll('[data-pick]'), function (e) { e.onclick = function () { sel = list.filter(function (d) { return d.id === Number(e.dataset.pick); })[0]; $('dres').innerHTML = ''; $('ds').value = ''; if ($('nd')) { $('nd').checked = false; $('ndf').classList.add('hidden'); } showSel(); }; }); };
+    if ($('nd')) $('nd').onchange = function () { $('ndf').classList.toggle('hidden', !this.checked); if (this.checked) { sel = null; showSel(); $('ndn').value = val('ds'); } };
+    function readLines() { lines = Array.prototype.map.call(document.querySelectorAll('.ln'), function (r) { return { brand: r.querySelector('.lb').value, item: r.querySelector('.li').value, qty: r.querySelector('.lq').value, value: r.querySelector('.lv').value }; }); }
+    function drawLines() {
+      $('lns').innerHTML = lines.map(function (l, i) { return '<div class="ln" style="border-bottom:1px solid var(--line);padding:6px 0"><div class="grid2"><div><label>Brand</label><input class="lb" list="dl_brand" value="' + h(l.brand) + '"></div><div><label>Item (optional)</label><input class="li" value="' + h(l.item) + '"></div><div><label>Qty (pcs)</label><input class="lq" type="number" min="0" value="' + h(l.qty) + '"></div><div><label>Value (Rs)</label><input class="lv" type="number" min="0" value="' + h(l.value) + '"></div></div>' + (lines.length > 1 && !(ed && ed.picked_at) ? '<button class="sm" data-rm="' + i + '">Hatayein</button>' : '') + '</div>'; }).join('');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { readLines(); lines.splice(Number(b.dataset.rm), 1); drawLines(); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('.lq,.lv'), function (e) { e.oninput = total; }); total();
+    }
+    function total() { readLines(); $('tot').textContent = 'Total: ' + lines.reduce(function (a, l) { return a + (Number(l.qty) || 0); }, 0) + ' pcs • ' + inr(lines.reduce(function (a, l) { return a + (Number(l.value) || 0); }, 0)); }
+    $('al').onclick = function () { if (ed && ed.picked_at) return toast('Pick ke baad line add nahi ho sakti', 'err'); readLines(); lines.push({ brand: '' }); drawLines(); };
+    showSel(); drawLines();
+    $('sv').onclick = function () {
+      readLines(); var d = { source: val('src'), priority: val('pri'), taken_by: val('tb'), salesman: val('sm'), expected_date: val('exd'), remarks: val('rm'), lines: lines };
+      if (sel && sel.id) d.dealer_id = sel.id; else if ($('nd') && $('nd').checked) d.new_dealer = { name: val('ndn'), mobile: val('ndm'), area: val('nda'), zone: val('ndz') }; else if (!ed) return toast('Dealer chunein', 'err');
+      if (ed) { d.id = ed.id; call('editOrder', d).then(function () { toast('Saved'); go('/o/' + ed.id); }).catch(fail); }
+      else call('createOrder', d).then(function (r) { S.dl = null; toast(r.order_no + ' ban gaya'); go('/o/' + r.id); }).catch(fail);
+    };
+  }).catch(fail);
+}
+
 // ---------------- dealers
 function loadDealers(force) { if (S.dl && !force) return Promise.resolve(S.dl); return call('dealers', {}, true).then(function (d) { S.dl = d; return d; }); }
 function uniq(k) { var m = {}; (S.dl || []).forEach(function (d) { var v = String(d[k] || '').trim(); if (v) m[v] = 1; }); return Object.keys(m).sort(); }
@@ -314,7 +360,8 @@ function vDash(v) {
     v.innerHTML = '<div class="row"><h2>Dashboard</h2><input type="date" id="day" value="' + day + '" style="flex:0 1 170px"></div>' +
       
       '<div class="grid4">' + S.m.stages.map(function (s) { return '<div class="kpi"><b>' + (d.counts[s] || 0) + '</b><span>' + h(stageLbl(s)) + '</span></div>'; }).join('') + '<div class="kpi"><b class="short">' + d.counts.hold + '</b><span>HOLD</span></div><div class="kpi"><b>' + d.unmatched + '</b><span>Unmatched bills</span></div></div>' +
-      '<div class="card" style="margin-top:12px"><div class="row"><h3>Pending to bill (' + d.pending.length + ')</h3><button class="sm" id="e1">CSV</button></div>' + table(d.pending, [['id', '#', function (x) { return '<a href="#/o/' + x + '">' + x + '</a>'; }], ['dealer_name', 'Dealer'], ['zone', 'Zone'], ['area', 'Area'], ['reason', 'Reason', function (x, r) { return r.hold ? '<span class="short">' + h(x) + '</span>' : h(x); }], ['age_days', 'Age (din)'], ['ordered_value', 'Value', inr]]) + '</div>' +
+      '<div class="card" style="margin-top:12px"><h3>Source wise (last 30 din)</h3><div class="grid4">' + Object.keys(d.sources || {}).map(function (k) { return '<div class="kpi"><b>' + d.sources[k] + '</b><span>' + h(k) + '</span></div>'; }).join('') + '</div></div>' +
+      '<div class="card" style="margin-top:12px"><div class="row"><h3>Pending to bill (' + d.pending.length + ')</h3><button class="sm" id="e1">CSV</button></div>' + table(d.pending, [['id', '#', function (x) { return '<a href="#/o/' + x + '">' + x + '</a>'; }], ['order_no', 'Order'], ['source', 'Source', function (x, r) { return h(x) + (r.priority === 'Urgent' ? ' <span class="short">URGENT</span>' : ''); }], ['dealer_name', 'Dealer'], ['zone', 'Zone'], ['area', 'Area'], ['reason', 'Reason', function (x, r) { return r.hold ? '<span class="short">' + h(x) + '</span>' : h(x); }], ['age_days', 'Age (din)'], ['ordered_value', 'Value', inr]]) + '</div>' +
       '<div class="card"><div class="row"><h3>Aaj ka dispatch by vehicle</h3><button class="sm" id="e2">CSV</button></div>' + table(d.dispatch, [['vehicle', 'Vehicle / mode'], ['orders', 'Orders'], ['dispatched', 'Dispatched'], ['boxes', 'Boxes'], ['value', 'Value', inr], ['dealers', 'Dealers', function (x) { return h(x.join(', ')); }]]) + '</div>' +
       '<div class="card"><div class="row"><h3>Efficiency (last 30 din, avg time per step)</h3><button class="sm" id="e3">CSV</button></div>' + table(d.efficiency, [['step', 'Step'], ['person', 'Kisne'], ['orders', 'Orders'], ['avg_min', 'Avg', mins], ['max_min', 'Max', mins]]) + '</div>';
     $('day').onchange = function () { LS.setItem('imw_day', this.value); vDash(v); };

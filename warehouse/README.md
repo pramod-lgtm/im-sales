@@ -32,3 +32,6 @@ Dealers tab (admin, manager): search, filter by zone/area, edit zone/area/route/
 
 ## Billing template
 Billing > "Download template" gives `Billing_Import_Template.xlsx`; its headers map automatically. EXAMPLE rows are skipped.
+
+## Manual orders (phone / WhatsApp / walk-in / email / salesman)
+"+ New order" (admin, manager, dispatch): pick a dealer or add a new one, source, taken by, salesman, brand lines (brand, item, qty, value), remarks, expected dispatch date, priority. Manual orders are numbered W-1, W-2... (Sales Tracker orders show as ST-<id>), follow the same stages, hold and bill matching, and can be edited or cancelled (with reason) until billed. Source shows as a badge, a filter in All orders, on the dashboard and in the CSV.
