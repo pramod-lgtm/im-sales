@@ -26,3 +26,9 @@ Tap the top title to log out.
 
 ## Done by names
 At allocation the manager assigns picker, checker, biller and packer. At every step the "Done by" dropdown (users of that role + Admin > Staff names + "Other name") records who actually did the work, so one shared login per counter is fine. Names show in the timeline, order list, CSV export and efficiency table.
+
+## Dealers, area and zone
+Dealers tab (admin, manager): search, filter by zone/area, edit zone/area/route/mobile/lat/lng, bulk-set zone, CSV download/upload (id, name, area, zone, route). Area/zone can also be changed from an order. Local edits are never overwritten by the Sales Tracker sync. Cluster view and nearby orders group by zone, then area, then route.
+
+## Billing template
+Billing > "Download template" gives `Billing_Import_Template.xlsx`; its headers map automatically. EXAMPLE rows are skipped.
