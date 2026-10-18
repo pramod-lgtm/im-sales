@@ -93,7 +93,7 @@ function nav(path) {
   $('who').textContent = S.user ? S.user.name + ' • ' + (S.user.role_label || S.user.role) : '';
   var n = $('nav'); if (!S.token || !S.user || path === '/setup' || path === '/login') { n.classList.add('hidden'); return; }
   var items = isStaff() ? [['/plans', '🗓', 'Plans'], ['/orders', '📦', 'Orders'], ['/live', '📍', 'Live'], ['/dash', '📊', 'Report'], ['/more', '☰', 'More']]
-    : [['/route', '🚚', 'Mera Route'], ['/history', '🕘', 'History'], ['/more', '☰', 'More']];
+    : [['/route', '🚚', 'Mera Route'], ['/fuel', '⛽', 'Gaadi / Fuel'], ['/history', '🕘', 'History'], ['/more', '☰', 'More']];
   n.innerHTML = items.map(function (i) { return '<a href="#' + i[0] + '" class="' + (path === i[0] ? 'on' : '') + '"><i>' + i[1] + '</i>' + i[2] + '</a>'; }).join('');
   n.classList.remove('hidden');
 }
@@ -119,7 +119,7 @@ ROUTES['/login'] = function () {
 ROUTES['/more'] = function () {
   var staff = isStaff(), admin = S.user.role === 'admin';
   view('<div class="card"><h2>More</h2><div class="grid2">' +
-    (staff ? '<a class="btn" href="#/km">🛣 KM Report</a><a class="btn" href="#/summary">📝 Daily Summary</a><a class="btn" href="#/stores">🏬 Stores</a><a class="btn" href="#/vehicles">🚐 Vehicles</a>' : '') +
+    (staff ? '<a class="btn" href="#/fuelreport">⛽ Fuel / km per litre</a><a class="btn" href="#/fuel">⛽ Fuel log entry</a><a class="btn" href="#/km">🛣 KM Report</a><a class="btn" href="#/summary">📝 Daily Summary</a><a class="btn" href="#/stores">🏬 Stores</a><a class="btn" href="#/vehicles">🚐 Vehicles</a>' : '') +
     (admin ? '<a class="btn" href="#/users">👤 Users / Drivers</a><a class="btn" href="#/settings">⚙ Settings</a>' : '') +
     (staff ? '<a class="btn" href="#/route">🚚 My Route (driver view)</a>' : '') +
     '<a class="btn" href="#/pin">🔑 Change PIN</a><a class="btn" href="#/setup">🔗 API link</a><button id="lo" class="danger">Logout</button></div></div>');
@@ -369,6 +369,94 @@ ROUTES['/km'] = function (q) {
   }, fail);
 };
 
+// ---------------- vehicle / fuel log
+function n2(v) { return v === '' || v == null ? '-' : (Math.round(Number(v) * 100) / 100).toLocaleString('en-IN'); }
+ROUTES['/fuel'] = function (q) {
+  var date = q.date || today(), staff = isStaff();
+  Promise.all([call('fuelDay', { date: date, driver_id: q.driver || '' }), staff ? masters() : null]).then(function (r) {
+    var d = r[0], m = r[1], vmap = {}; d.vehicles.forEach(function (v) { vmap[v.id] = v; });
+    var drivers = m ? m.users.filter(function (u) { return Number(u.active); }) : [];
+    var html = '<div class="card"><div class="row"><h2 style="flex:1">⛽ Gaadi / Fuel log</h2><input type="date" id="dt" value="' + date + '" style="max-width:170px"></div>' +
+      (staff ? '<label>Driver</label><select id="drv">' + drivers.map(function (u) { return '<option value="' + u.id + '"' + (Number(u.id) === Number(d.driver_id) ? ' selected' : '') + '>' + h(u.name) + '</option>'; }).join('') + '</select>' : '') +
+      '<p class="small muted">' + h(d.driver_name) + ' • ' + dmy(d.date) + (d.auto_deliveries != null ? ' • Aaj ki deliveries (app se): <b>' + d.auto_deliveries + '</b>' : '') + '</p></div>';
+    d.entries.forEach(function (e) {
+      var v = vmap[e.vehicle_id] || { number: '#' + e.vehicle_id };
+      if (e.status === 'closed') {
+        html += '<div class="card"><h3>🚐 ' + h(v.number) + ' <span class="pill st-delivered">closed</span></h3><div class="grid4">' + kpi(e.opening_km + '→' + e.closing_km, 'Odometer') + kpi(n2(e.km_run), 'Km run') + kpi(e.fuel_rs ? inr(e.fuel_rs) : '-', 'Fuel') + kpi(n2(e.litres), 'Litres') +
+          kpi(n2(e.rs_per_litre), 'Rs/litre') + kpi(n2(e.km_per_litre), 'Km/litre') + kpi(e.parking ? inr(e.parking) : '-', 'Parking') + kpi(e.toll ? inr(e.toll) : '-', 'MCD / toll') + kpi(e.deliveries === '' ? '-' : e.deliveries, 'Deliveries (' + (e.deliveries_src || '-') + ')') + '</div>' +
+          (staff ? '<button class="sm" data-fc="' + e.id + '" style="margin-top:8px">✏ Edit closing</button>' : '') + '</div>';
+      } else {
+        html += '<div class="card"><h3>🚐 ' + h(v.number) + ' <span class="pill st-arrived">open</span></h3><p class="small">Opening km: <b>' + e.opening_km + '</b>' + (e.opening_photo ? ' • <a target="_blank" href="' + h(e.opening_photo) + '">📷</a>' : '') + '</p>' +
+          '<h3 style="margin-top:8px">Shaam / Evening</h3><div class="grid2"><div><label>Closing km *</label><input id="ck' + e.id + '" type="number" inputmode="decimal" step="any" min="' + e.opening_km + '"></div><div><label>Fuel Rs</label><input id="fr' + e.id + '" type="number" inputmode="decimal" step="any"></div>' +
+          '<div><label>Litres</label><input id="lt' + e.id + '" type="number" inputmode="decimal" step="any"></div><div><label>Parking Rs</label><input id="pk' + e.id + '" type="number" inputmode="decimal" step="any"></div>' +
+          '<div><label>MCD / toll Rs</label><input id="tl' + e.id + '" type="number" inputmode="decimal" step="any"></div><div><label>Deliveries made' + (d.auto_deliveries != null ? ' (auto: ' + d.auto_deliveries + ')' : ' *') + '</label><input id="dl' + e.id + '" type="number" inputmode="numeric" placeholder="' + (d.auto_deliveries != null ? 'auto' : '') + '"></div></div>' +
+          '<label>Odometer photo (optional)</label><input id="cp' + e.id + '" type="file" accept="image/*" capture="environment"><p class="small muted" id="cv' + e.id + '"></p>' +
+          '<button class="primary big" data-close="' + e.id + '" data-open="' + e.opening_km + '">Save evening entry</button></div>';
+      }
+    });
+    var used = d.entries.map(function (e) { return Number(e.vehicle_id); }), free = d.vehicles.filter(function (v) { return used.indexOf(Number(v.id)) < 0; });
+    if (free.length) html += '<div class="card"><h3>' + (d.entries.length ? '+ Doosri gaadi' : 'Subah / Morning') + '</h3><label>Vehicle *</label><select id="veh">' + free.map(function (v) { return '<option value="' + v.id + '"' + (Number(v.id) === Number(d.default_vehicle_id) ? ' selected' : '') + '>' + h(v.number) + '</option>'; }).join('') + '</select>' +
+      '<label>Opening km *</label><input id="ok" type="number" inputmode="decimal" step="any"><p class="small muted" id="pv"></p><label>Odometer photo (optional)</label><input id="op" type="file" accept="image/*" capture="environment"><button class="good big" id="sopen" style="margin-top:10px">Save opening km</button></div>';
+    view(html);
+    on('dt', 'change', function () { go('/fuel?date=' + this.value + (staff ? '&driver=' + val('drv') : '')); });
+    on('drv', 'change', function () { go('/fuel?date=' + val('dt') + '&driver=' + this.value); });
+    function pre() { var v = vmap[val('veh')]; if (!v) return; $('ok').value = v.prev_closing == null ? '' : v.prev_closing; $('pv').textContent = v.prev_closing == null ? 'Is gaadi ka pichla closing km nahi mila — meter se bharein.' : 'Pichla closing km: ' + v.prev_closing + ' (prefilled)'; }
+    if ($('veh')) { pre(); on('veh', 'change', pre); }
+    on('sopen', 'click', function () {
+      var btn = this, okm = val('ok'); if (okm === '') return fail(new Error('Opening km daalein')); btn.disabled = true;
+      readPhoto($('op'), 900).then(function (ph) {
+        var a = { date: d.date, driver_id: staff ? d.driver_id : '', vehicle_id: Number(val('veh')), opening_km: Number(okm), photo: ph };
+        return call('fuelOpen', a).then(function (x) { if (x.need_confirm) { if (!confirm('Opening km ' + okm + ' pichle closing km ' + x.prev_closing + ' se kam hai. Phir bhi save karein?')) return null; a.force = 1; return call('fuelOpen', a); } return x; });
+      }).then(function (x) { btn.disabled = false; if (x) { toast('Opening km saved'); route(); } }, function (e) { btn.disabled = false; fail(e); });
+    });
+    $('view').querySelectorAll('[data-close]').forEach(function (b) {
+      var id = b.dataset.close, op = Number(b.dataset.open), calc = function () { var ck = Number(val('ck' + id)), lt = Number(val('lt' + id)), fr = Number(val('fr' + id)), km = ck - op, t = [];
+        if (val('ck' + id) !== '') t.push(km < 0 ? '⚠ Closing km opening se kam hai' : 'Km run: ' + Math.round(km * 10) / 10); if (lt > 0 && fr > 0) t.push('Rs/litre: ' + n2(fr / lt)); if (lt > 0 && km >= 0 && val('ck' + id) !== '') t.push('Km/litre: ' + n2(km / lt)); $('cv' + id).textContent = t.join(' • '); };
+      ['ck', 'lt', 'fr'].forEach(function (k) { on(k + id, 'input', calc); });
+      b.onclick = function () {
+        var ck = val('ck' + id); if (ck === '') return fail(new Error('Closing km daalein')); if (Number(ck) < op) return fail(new Error('Closing km (' + ck + ') opening km (' + op + ') se kam nahi ho sakta'));
+        if (d.auto_deliveries == null && val('dl' + id) === '') return fail(new Error('Deliveries made bharein'));
+        b.disabled = true;
+        readPhoto($('cp' + id), 900).then(function (ph) { return call('fuelClose', { id: Number(id), closing_km: Number(ck), fuel_rs: val('fr' + id), litres: val('lt' + id), parking: val('pk' + id), toll: val('tl' + id), deliveries: val('dl' + id), photo: ph }); })
+          .then(function (x) { toast('Saved • ' + x.km_run + ' km' + (x.km_per_litre !== '' ? ' • ' + x.km_per_litre + ' km/l' : '')); route(); }, function (e) { b.disabled = false; fail(e); });
+      };
+    });
+    $('view').querySelectorAll('[data-fc]').forEach(function (b) { b.onclick = function () {
+      var e = d.entries.filter(function (x) { return String(x.id) === b.dataset.fc; })[0];
+      var sh = sheet('<h2>Edit closing</h2><div class="grid2"><div><label>Closing km</label><input id="eck" type="number" step="any" value="' + h(e.closing_km) + '"></div><div><label>Fuel Rs</label><input id="efr" type="number" step="any" value="' + h(e.fuel_rs) + '"></div><div><label>Litres</label><input id="elt" type="number" step="any" value="' + h(e.litres) + '"></div><div><label>Parking</label><input id="epk" type="number" step="any" value="' + h(e.parking) + '"></div><div><label>MCD / toll</label><input id="etl" type="number" step="any" value="' + h(e.toll) + '"></div><div><label>Deliveries (blank = auto)</label><input id="edl" type="number" value="' + (e.deliveries_src === 'manual' ? h(e.deliveries) : '') + '"></div></div><button class="primary big" id="esv" style="margin-top:10px">Save</button><button class="big" id="ecx" style="margin-top:8px">Cancel</button>');
+      sh.querySelector('#ecx').onclick = function () { sh.remove(); };
+      sh.querySelector('#esv').onclick = function () { var g = function (k) { return sh.querySelector('#' + k).value.trim(); }; call('fuelClose', { id: e.id, closing_km: g('eck'), fuel_rs: g('efr'), litres: g('elt'), parking: g('epk'), toll: g('etl'), deliveries: g('edl') }).then(function () { sh.remove(); toast('Saved'); route(); }, fail); };
+    }; });
+  }, function (e) { view('<div class="card">' + h(e.message) + '</div>'); });
+};
+var FUEL_COLS = [['date', 'Date'], ['vehicle', 'Vehicle'], ['driver', 'Driver'], ['opening_km', 'Opening km'], ['closing_km', 'Closing km'], ['km_run', 'Km run'], ['fuel_rs', 'Fuel Rs'], ['litres', 'Litres'], ['rs_per_litre', 'Rs per litre'], ['km_per_litre', 'Km per litre'], ['parking', 'Parking'], ['toll', 'MCD/toll'], ['deliveries', 'Deliveries made']];
+function fuelGroupTable(title, g, withVeh) {
+  return '<h3>' + title + '</h3><div class="tw"><table><tr><th>' + (withVeh ? 'Driver' : 'Vehicle') + '</th>' + (withVeh ? '<th>Vehicle</th>' : '') + '<th>Km</th><th>Litres</th><th>Km/l</th><th>Expected</th><th>Diff</th><th>Fuel</th><th>Parking</th><th>MCD/toll</th><th>Deliv</th><th>Rs/km</th><th>Rs/deliv</th></tr>' +
+    g.map(function (a) { return '<tr' + (a.flag ? ' style="background:#fde0e4"' : '') + '><td>' + h(a.name) + (a.flag ? ' ⚠' : '') + '</td>' + (withVeh ? '<td>' + h(a.vehicle) + '</td>' : '') + '<td>' + n2(a.km) + '</td><td>' + n2(a.litres) + '</td><td><b>' + n2(a.kmpl) + '</b></td><td>' + n2(a.expected_kmpl) + (a.expected_src ? '<div class="small muted">' + h(a.expected_src) + '</div>' : '') + '</td><td>' + (a.diff_pct == null ? '-' : a.diff_pct + '%') + '</td><td>' + inr(a.fuel_rs) + '</td><td>' + inr(a.parking) + '</td><td>' + inr(a.toll) + '</td><td>' + a.deliveries + '</td><td>' + n2(a.cost_per_km) + '</td><td>' + n2(a.cost_per_delivery) + '</td></tr>'; }).join('') + '</table></div>';
+}
+ROUTES['/fuelreport'] = function (q) {
+  var month = q.m || today().slice(0, 7);
+  call('fuelReport', { month: month }).then(function (r) {
+    var t = r.totals;
+    view('<div class="card"><div class="row"><h2 style="flex:1">⛽ Fuel & km per litre</h2><input type="month" id="mo" value="' + month + '" style="max-width:170px"></div>' +
+      '<div class="grid4">' + kpi(n2(t.km), 'Km run') + kpi(n2(t.litres), 'Litres') + kpi(n2(t.kmpl), 'Km / litre') + kpi(inr(t.fuel_rs), 'Fuel') + kpi(inr(t.parking), 'Parking') + kpi(inr(t.toll), 'MCD / toll') + kpi(inr(t.total_cost), 'Total cost') + kpi(n2(t.cost_per_km), 'Cost per km') + kpi(t.deliveries, 'Deliveries') + kpi(n2(t.cost_per_delivery), 'Cost per delivery') + '</div>' +
+      '<p class="small muted">Km/l = total km ÷ total litres (closed entries). ⚠ = more than ' + r.tolerance_pct + '% below the vehicle\'s expected km/l (set in Vehicles, else its own last-3-month average).' + (r.open_entries ? ' ' + r.open_entries + ' entries still open (no closing km).' : '') + '</p>' +
+      '<div class="row"><button class="primary" id="dl">⬇ CSV (daily log)</button><button id="dl2">⬇ CSV (monthly roll-up)</button></div></div>' +
+      '<div class="card"><h2>⚠ Flags</h2>' + (r.flags.length ? '<table>' + r.flags.map(function (f) { return '<tr><td>' + h(f.type) + '</td><td>' + h(f.name) + '</td><td>' + n2(f.kmpl) + ' km/l vs ' + n2(f.expected_kmpl) + '</td><td><b style="color:var(--low)">' + f.diff_pct + '%</b></td></tr>'; }).join('') + '</table>' : '<p class="muted small">None</p>') + '</div>' +
+      '<div class="card">' + fuelGroupTable('By vehicle', r.by_vehicle) + fuelGroupTable('By driver', r.by_driver, true) + '</div>' +
+      '<div class="card"><h3>Daily log</h3><div class="tw"><table><tr>' + FUEL_COLS.map(function (c) { return '<th>' + c[1] + '</th>'; }).join('') + '<th></th></tr>' +
+      r.rows.map(function (e) { return '<tr' + (e.flag ? ' style="background:#fde0e4"' : '') + '>' + FUEL_COLS.map(function (c) { var v = e[c[0]]; return '<td>' + (c[0] === 'date' ? dmy(v) : c[0] === 'vehicle' || c[0] === 'driver' ? h(v) : n2(v)) + '</td>'; }).join('') +
+        '<td>' + (e.status !== 'closed' ? '<span class="pill st-arrived">open</span>' : '') + (e.flag ? ' ⚠' : '') + (e.opening_photo ? ' <a target="_blank" href="' + h(e.opening_photo) + '">📷</a>' : '') + (e.closing_photo ? '<a target="_blank" href="' + h(e.closing_photo) + '">📷</a>' : '') + '</td></tr>'; }).join('') + '</table></div></div>');
+    on('mo', 'change', function () { go('/fuelreport?m=' + this.value); });
+    on('dl', 'click', function () { var rows = r.rows.map(function (e) { var o = {}; FUEL_COLS.forEach(function (c) { o[c[1]] = e[c[0]]; }); o['Deliveries source'] = e.deliveries_src; o.Status = e.status; o['Expected km/l'] = e.expected_kmpl; o.Flag = e.flag; return o; });
+      download('fuel-log-' + month + '.csv', csv(rows, FUEL_COLS.map(function (c) { return c[1]; }).concat(['Deliveries source', 'Status', 'Expected km/l', 'Flag']))); });
+    on('dl2', 'click', function () { var all = [];
+      r.by_vehicle.forEach(function (a) { all.push(Object.assign({ group: 'vehicle', vehicle: a.name, driver: '' }, a)); }); r.by_driver.forEach(function (a) { all.push(Object.assign({ group: 'driver', driver: a.name }, a)); });
+      all.push(Object.assign({ group: 'total', vehicle: '', driver: '' }, t));
+      download('fuel-summary-' + month + '.csv', csv(all, ['group', 'vehicle', 'driver', 'entries', 'km', 'litres', 'kmpl', 'expected_kmpl', 'diff_pct', 'flag', 'fuel_rs', 'rs_per_litre', 'parking', 'toll', 'total_cost', 'deliveries', 'cost_per_km', 'cost_per_delivery'])); });
+  }, fail);
+};
+
 // ---------------- masters
 function formCard(title, fields, rows, cols, onSave, key) {
   return '<div class="card"><h2>' + title + '</h2><input type="hidden" id="f_id">' + fields.map(function (f) { return '<label>' + f[1] + '</label>' + (f[2] === 'select' ? '<select id="f_' + f[0] + '">' + f[3] + '</select>' : '<input id="f_' + f[0] + '" ' + (f[2] ? 'type="' + f[2] + '" ' : '') + (f[3] || '') + '>'); }).join('') +
@@ -397,8 +485,8 @@ ROUTES['/stores'] = function () {
 };
 ROUTES['/vehicles'] = function () {
   masters(true).then(function (m) {
-    var F = [['number', 'Vehicle number *'], ['type', 'Type (Tempo / Bike / Van)'], ['capacity_boxes', 'Capacity (boxes)', 'number'], ['active', 'Status', 'select', ACT, '1']];
-    view(formCard('Vehicles', F, m.vehicles, [['number', 'Number'], ['type', 'Type'], ['capacity_boxes', 'Boxes'], ['active', 'On', function (r) { return Number(r.active) ? '✔' : '-'; }]])); bindForm(F, m.vehicles, 'saveVehicle');
+    var F = [['number', 'Vehicle number *'], ['type', 'Type (Tempo / Bike / Van)'], ['capacity_boxes', 'Capacity (boxes)', 'number'], ['expected_kmpl', 'Expected km/l (blank = own 3-month average)', 'number', 'step="0.1" inputmode="decimal"'], ['active', 'Status', 'select', ACT, '1']];
+    view(formCard('Vehicles', F, m.vehicles, [['number', 'Number'], ['type', 'Type'], ['capacity_boxes', 'Boxes'], ['expected_kmpl', 'Exp km/l', function (r) { return r.expected_kmpl === '' || r.expected_kmpl == null ? 'auto' : r.expected_kmpl; }], ['active', 'On', function (r) { return Number(r.active) ? '✔' : '-'; }]])); bindForm(F, m.vehicles, 'saveVehicle');
   }, fail);
 };
 ROUTES['/users'] = function () {
@@ -410,7 +498,7 @@ ROUTES['/users'] = function () {
 };
 ROUTES['/settings'] = function () {
   masters(true).then(function (m) {
-    var s = m.settings, keys = ['depot_name', 'depot_lat', 'depot_lng', 'start_time', 'speed_kmh', 'service_min', 'road_factor', 'use_google_maps', 'geofence_m', 'late_min', 'idle_min', 'ping_sec', 'photo_required', 'otp_required', 'km_rate', 'company'];
+    var s = m.settings, keys = ['depot_name', 'depot_lat', 'depot_lng', 'start_time', 'speed_kmh', 'service_min', 'road_factor', 'use_google_maps', 'geofence_m', 'late_min', 'idle_min', 'ping_sec', 'photo_required', 'otp_required', 'km_rate', 'kmpl_tolerance_pct', 'company'];
     view('<div class="card"><h2>Settings</h2>' + keys.map(function (k) { return '<label>' + k + '</label><input id="s_' + k + '" value="' + h(s[k]) + '">'; }).join('') + '<button class="primary big" id="ss" style="margin-top:12px">Save</button></div>');
     on('ss', 'click', function () { var d = {}; keys.forEach(function (k) { d[k] = val('s_' + k); }); call('saveSettings', d).then(function () { toast('Saved'); return call('me'); }).then(function (r) { S.settings = r.settings; LS.setItem('imd_settings', JSON.stringify(r.settings)); }, fail); });
   }, fail);
