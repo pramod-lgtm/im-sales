@@ -23,3 +23,6 @@ Backend: Google Apps Script Web app (Code.gs kept outside this repo, see SETUP.m
 4. Order screen lists nearby pending orders (same area / route / within 3 km). Cluster tab groups pending orders by area.
 
 Tap the top title to log out.
+
+## Done by names
+At allocation the manager assigns picker, checker, biller and packer. At every step the "Done by" dropdown (users of that role + Admin > Staff names + "Other name") records who actually did the work, so one shared login per counter is fine. Names show in the timeline, order list, CSV export and efficiency table.

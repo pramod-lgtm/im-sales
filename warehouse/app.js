@@ -76,7 +76,7 @@ function card(o) {
   return '<a class="card" style="display:block;text-decoration:none;color:inherit" href="#/o/' + o.id + '"><div class="row"><b>#' + o.id + ' ' + h(o.dealer_name) + '</b><span style="flex:0">' + pill(o) + '</span></div>' +
     '<div class="small muted">' + h(dmy(o.order_date)) + ' • ' + h(o.area || 'area ?') + (o.route ? ' • ' + h(o.route) : '') + (o.beat_day ? ' • beat ' + h(o.beat_day) : '') + ' • ' + h(o.salesman) + '</div>' +
     '<div class="small">' + (o.lines || []).map(function (l) { return h(l.brand) + ' ' + inr(l.ordered_value) + (l.ordered_qty !== '' ? ' (' + l.ordered_qty + ' pcs)' : ''); }).join(' + ') +
-    (o.picker_name ? ' • Picker: ' + h(o.picker_name) : '') + (o.invoice_no ? ' • Inv ' + h(o.invoice_no) : '') + (o.vehicle || o.delivery_mode ? ' • ' + h(o.vehicle || o.delivery_mode) : '') + '</div>' +
+    [['P', o.picker_name], ['C', o.checker_name], ['B', o.biller_name], ['Pk', o.packer_name]].filter(function (x) { return x[1]; }).map(function (x) { return ' • ' + x[0] + ': ' + h(x[1]); }).join('') + (o.invoice_no ? ' • Inv ' + h(o.invoice_no) : '') + (o.vehicle || o.delivery_mode ? ' • ' + h(o.vehicle || o.delivery_mode) : '') + '</div>' +
     (Number(o.hold) ? '<div class="small short">Hold: ' + h(o.hold_reason) + ' ' + h(o.hold_note) + '</div>' : '') + '</a>';
 }
 function syncBtn() { return can('sync') ? '<button class="sm" id="sync">🔄 Sync now</button>' : ''; }
@@ -110,12 +110,13 @@ function vOrder(v, id) {
     var o = r.order, nx = NEXT[o.stage], mine = nx && STEP_ROLES[nx].indexOf(role()) >= 0 && !Number(o.hold), si = S.m.stages.indexOf(o.stage);
     var tl = '<ul class="tl"><li class="done"><b>Order aaya</b> <span class="small muted">' + h(dmy(o.order_date)) + ' • ' + h(o.salesman) + ' (Sales Tracker #' + h(o.src_id) + ')</span></li>' + STEPS.map(function (s, i) {
       var done = !!o[s[1]], extra = '';
-      if (s[0] === 'allocate' && o.picker_name) extra = ' → ' + h(o.picker_name);
+      if (s[0] === 'allocate' && done) extra = ' → Picker ' + h(o.picker_name || '-') + ', Checker ' + h(o.checker_name || '-') + ', Biller ' + h(o.biller_name || '-') + ', Packer ' + h(o.packer_name || '-');
+      var nm = { pick: o.picker_name, check: o.checker_name, bill: o.biller_name, pack: o.packer_name, dispatch: o.dispatch_name }[s[0]];
       if (s[0] === 'pick' && done) extra = ' • picked ' + h(o.picked_qty) + (Number(o.short_qty) ? ' <span class="short">short ' + o.short_qty + '</span>' : '');
       if (s[0] === 'bill' && o.invoice_no) extra = ' • Inv ' + h(o.invoice_no) + ' • qty ' + h(o.billed_qty) + ' • ' + inr(o.billed_value) + (o.bill_source ? ' (' + h(o.bill_source) + ')' : '');
       if (s[0] === 'pack' && done) extra = ' • ' + h(o.boxes) + ' boxes';
       if (s[0] === 'dispatch' && o.delivery_mode) extra = ' • ' + h(o.delivery_mode) + ' ' + h(o.vehicle) + ' • ' + h(o.payment_mode) + ' • ' + h(dmy(o.dispatch_date));
-      return '<li class="' + (done ? 'done' : (i === si ? 'now' : '')) + '"><b>' + s[3] + '</b>' + extra + '<div class="small muted">' + (done ? tm(o[s[1]]) + ' • ' + h(o[s[2]]) : 'Pending') + '</div></li>';
+      return '<li class="' + (done ? 'done' : (i === si ? 'now' : '')) + '"><b>' + s[3] + '</b>' + extra + '<div class="small muted">' + (done ? tm(o[s[1]]) + ' • ' + (nm && s[0] !== 'allocate' ? 'Done by <b>' + h(nm) + '</b> (login: ' + h(o[s[2]]) + ')' : h(o[s[2]])) : 'Pending' + (nm && s[0] !== 'allocate' ? ' • assigned ' + h(nm) : '')) + '</div></li>';
     }).join('') + '</ul>';
     var lines = '<div class="tw"><table><tr><th>Brand / item</th><th>Order qty</th><th>Value</th><th>Picked</th><th>Short</th></tr>' + o.lines.map(function (l) {
       var sh = l.picked_qty !== '' && l.ordered_qty !== '' ? Math.max(0, l.ordered_qty - l.picked_qty) : '';
@@ -124,7 +125,8 @@ function vOrder(v, id) {
     }).join('') + '</table></div>' + (isMgr() && !o.picked_at ? '<button class="sm" id="saveq">Order qty save</button>' : '');
     var act = '';
     if (mine) {
-      if (nx === 'allocate') act = '<label>Picker</label><select id="pk">' + S.m.users.filter(function (u) { return u.role === 'picker'; }).map(function (u) { return '<option value="' + u.id + '">' + h(u.name) + '</option>'; }).join('') + '</select>';
+      if (nx === 'allocate') act = '<div class="grid2"><div>' + whoSel('w_picker', 'picker', o.picker_name, 'Picker') + '</div><div>' + whoSel('w_checker', 'checker', o.checker_name, 'Checker') + '</div><div>' + whoSel('w_biller', 'biller', o.biller_name, 'Biller') + '</div><div>' + whoSel('w_packer', 'packer', o.packer_name, 'Packer') + '</div></div>';
+      else act = whoSel('w_done', STEP_ROLE[nx][0], o[STEP_ROLE[nx][1]] || (role() === STEP_ROLE[nx][0] && peopleFor(STEP_ROLE[nx][0]).length <= 1 ? S.user.name : ''), 'Done by (kisne kiya)');
       if (nx === 'bill') act = '<div class="grid2"><div><label>Invoice no</label><input id="inv"></div><div><label>Billed qty</label><input id="bq" type="number" value="' + h(o.picked_qty) + '"></div></div><label>Billed value (Rs)</label><input id="bv" type="number">';
       if (nx === 'pack') act = '<label>Kitne boxes</label><input id="bx" type="number" min="1">';
       act += '<button class="good big" id="stepb" style="margin-top:10px">✔ ' + STEPS.filter(function (s) { return s[0] === nx; })[0][3] + ' confirm</button>';
@@ -139,7 +141,10 @@ function vOrder(v, id) {
       '<div class="card"><h3>Items</h3>' + lines + '</div><div class="card"><h3>Timeline</h3>' + tl + act + '</div>' + hold + del + nb;
     var b = $('stepb'); if (b) b.onclick = function () {
       var d = { id: o.id, action: nx };
-      if (nx === 'allocate') d.picker_id = val('pk');
+      if (nx === 'allocate') {
+        d.picker_name = whoVal('w_picker'); var pu = S.m.users.filter(function (u) { return u.role === 'picker' && u.name === d.picker_name; })[0]; if (pu) d.picker_id = pu.id;
+        d.checker_name = whoVal('w_checker'); d.biller_name = whoVal('w_biller'); d.packer_name = whoVal('w_packer');
+      } else { d.done_by = whoVal('w_done'); if (!d.done_by) return toast('Done by chunein', 'err'); }
       if (nx === 'pick') { d.picked = {}; Array.prototype.forEach.call(document.querySelectorAll('.pq'), function (i) { d.picked[i.dataset.id] = i.value; }); }
       if (nx === 'bill') { d.invoice_no = val('inv'); d.billed_qty = val('bq'); d.billed_value = val('bv'); }
       if (nx === 'pack') d.boxes = val('bx');
@@ -151,6 +156,20 @@ function vOrder(v, id) {
     if ($('delb')) $('delb').onclick = function () { call('delivery', delData([o.id])).then(function () { toast('Delivery saved'); vOrder(v, id); }).catch(fail); };
   }).catch(fail);
 }
+// "Done by": users of that role + staff names of that role + Other (free text)
+function peopleFor(r) {
+  var seen = {}, out = [];
+  S.m.users.filter(function (u) { return u.role === r; }).concat(S.m.staff.filter(function (x) { return x.role === r; })).forEach(function (x) { if (!seen[x.name]) { seen[x.name] = 1; out.push(x.name); } });
+  return out;
+}
+function whoSel(id, r, cur, label) {
+  var ps = peopleFor(r), other = cur && ps.indexOf(cur) < 0;
+  return '<label>' + label + '</label><select id="' + id + '" onchange="document.getElementById(\'' + id + '_o\').classList.toggle(\'hidden\',this.value!==\'__o\')"><option value="">-</option>' +
+    ps.map(function (n) { return '<option' + (n === cur ? ' selected' : '') + '>' + h(n) + '</option>'; }).join('') + '<option value="__o"' + (other ? ' selected' : '') + '>Other name...</option></select>' +
+    '<input id="' + id + '_o" class="' + (other ? '' : 'hidden') + '" placeholder="Naam likhein" value="' + h(other ? cur : '') + '" style="margin-top:6px">';
+}
+function whoVal(id) { var v = val(id); return v === '__o' ? val(id + '_o') : v; }
+var STEP_ROLE = { pick: ['picker', 'picker_name'], check: ['checker', 'checker_name'], bill: ['biller', 'biller_name'], pack: ['packer', 'packer_name'], dispatch: ['dispatch', 'dispatch_name'] };
 function delForm(o) {
   o = o || {};
   return '<div class="grid2"><div><label>Delivery mode</label><select id="dm">' + S.m.delivery_modes.map(function (x) { return '<option' + (o.delivery_mode === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>' +
@@ -268,9 +287,11 @@ function vDash(v) {
 
 // ---------------- admin
 function vAdmin(v) {
-  call('users').then(function (us) {
+  Promise.all([call('users'), call('staffList')]).then(function (rr) { var us = rr[0]; S.m.staffAll = rr[1];
     v.innerHTML = '<h2>Admin</h2><div class="card"><h3>Users</h3>' + table(us, [['username', 'Login'], ['name', 'Naam'], ['role_label', 'Role'], ['active', 'Active', function (x) { return Number(x) ? 'Haan' : 'Nahi'; }], ['id', '', function (x) { return '<button class="sm" data-u="' + x + '">Edit</button>'; }]]) +
       '<button class="primary" id="nu" style="margin-top:8px">+ Naya user</button></div><div class="card"><h3>Vehicles</h3>' + S.m.vehicles.map(function (x) { return '<div class="chk">' + h(x.number) + ' <span class="muted small">' + h(x.type) + '</span></div>'; }).join('') + '<div class="row" style="margin-top:8px"><input id="vn" placeholder="DL1XX-0000"><button id="va">Add vehicle</button></div></div>' +
+      '<div class="card"><h3>Staff names (bina login)</h3><p class="small muted">Yeh naam "Done by" dropdown mein aate hain.</p>' + (S.m.staffAll || []).map(function (x) { return '<div class="chk"><span style="flex:1">' + h(x.name) + ' <span class="muted small">' + h(S.m.roles[x.role] || x.role) + (Number(x.active) ? '' : ' (off)') + '</span></span><button class="sm" data-st="' + x.id + '">' + (Number(x.active) ? 'Off' : 'On') + '</button></div>'; }).join('') +
+      '<div class="row" style="margin-top:8px"><input id="sn" placeholder="Naam"><select id="sr">' + ['picker', 'checker', 'biller', 'packer', 'dispatch', 'warehouse_manager'].map(function (r) { return '<option value="' + r + '">' + S.m.roles[r] + '</option>'; }).join('') + '</select><button id="sa">Add</button></div></div>' +
       '<div class="card small muted">Sales Tracker sync: har 15 min (trigger). Last: ' + tm(S.m.last_sync) + ' ' + h(S.m.last_sync_note) + '</div><button class="big" id="lo">Logout</button>';
     function edit(u) {
       u = u || {}; var d = sheet('<h3>' + (u.id ? 'Edit user' : 'Naya user') + '</h3>' + (u.id ? '' : '<label>Username</label><input id="eu">') + '<label>Naam</label><input id="en" value="' + h(u.name) + '"><label>Mobile</label><input id="em" value="' + h(u.mobile) + '"><label>Role</label><select id="er">' + Object.keys(S.m.roles).map(function (r) { return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + S.m.roles[r] + '</option>'; }).join('') + '</select><label>PIN ' + (u.id ? '(khali = same)' : '') + '</label><input id="ep" inputmode="numeric">' + (u.id ? '<label class="chk"><input type="checkbox" id="ea"' + (Number(u.active) ? ' checked' : '') + '> Active</label>' : '') + '<button class="primary big" id="es" style="margin-top:10px">Save</button>');
@@ -280,6 +301,8 @@ function vAdmin(v) {
     Array.prototype.forEach.call(document.querySelectorAll('[data-u]'), function (b) { b.onclick = function () { edit(us.filter(function (x) { return x.id === Number(b.dataset.u); })[0]); }; });
     $('va').onclick = function () { call('saveVehicle', { number: val('vn') }).then(function () { S.m = null; route(); }).catch(fail); };
     $('lo').onclick = function () { signOut(); };
+    $('sa').onclick = function () { call('saveStaff', { name: val('sn'), role: val('sr') }).then(function () { S.m = null; toast('Added'); route(); }).catch(fail); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-st]'), function (b) { b.onclick = function () { var x = S.m.staffAll.filter(function (y) { return y.id === Number(b.dataset.st); })[0]; call('saveStaff', { id: x.id, name: x.name, role: x.role, active: !Number(x.active) }).then(function () { S.m = null; route(); }).catch(fail); }; });
   }).catch(fail);
 }
 // non-admin logout: long-press title
