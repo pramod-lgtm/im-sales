@@ -424,7 +424,7 @@ on(/^\/quick$/, function () {
 on(/^\/more$/, function () {
   var L = [['/offers', '🏷️ Offers board', 'offers_read'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
     ['/ranking', '🏆 All-store ranking', 'ranking'], ['/team', '👥 Team attendance', 'team_attendance'], ['/cash', '💵 Cash tally', 'cash'], ['/cash-all', '💵 Cash tallies (all stores)', 'cash_view_all'], ['/petty', '🧾 Petty cash', 'petty'],
-    ['/manual', '✍️ Manual sales (if Fusion import is late)', 'sales_manual'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Audit visit', 'audit'],
+    ['/manual', '✍️ Manual sales (if Fusion import is late)', 'sales_manual'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'],
     ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
   $app.innerHTML = '<h2>More</h2><div class="card"><ul class="list">' + L.filter(function (x) { return !x[2] || can(x[2]); }).map(function (x) { return '<li><a href="#" data-go="' + x[0] + '">' + x[1] + '</a><span class="muted">›</span></li>'; }).join('') + '</ul></div>' +
     '<div class="card row-between"><span>' + h(S.user.name) + '<br><span class="small muted">' + h(S.user.role_label) + ' · ' + h(S.user.username) + '</span></span><button class="danger" id="logout">Sign out</button></div>';
@@ -718,15 +718,59 @@ on(/^\/tasks$/, function () {
 // ---------- audit visit, photo review ----------
 on(/^\/audit$/, function () {
   CAM = {};
-  return Promise.all([call('auditAreas'), call('audits')]).then(function (x) {
-    var areas = x[0], past = x[1];
-    $app.innerHTML = '<h2>📝 Audit visit</h2><div id="gps" class="small"></div><form id="af" class="card stack">' + storePicker('ast', curStore()) + areas.map(function (a) {
-      return '<div class="chk"><span class="q">' + T(a.area, a.area_hi) + '</span>' + chips('s' + a.id, [1, 2, 3, 4, 5].map(function (v) { return [v, String(v)]; }), 4) + '<input name="n' + a.id + '" placeholder="Note (optional)" style="margin-top:6px"></div>';
-    }).join('') + '<label>Summary<textarea name="summary" rows="3"></textarea></label>' + cam('a1', 'audit', 'Photo 1') + cam('a2', 'audit', 'Photo 2') + '<button class="primary block big">Save audit</button><p class="tiny muted">Scores of 2 or less create a task for the store.</p></form>' +
-      '<h4 class="sec">Past audits</h4><div class="card"><ul class="list">' + (past.length ? past.map(function (a) { return '<li><span>' + h(a.store) + '<br><span class="small muted">' + dLabel(a.date) + ' · ' + h(a.auditor_name) + '</span></span><span class="pill ' + cls(a.total_pct) + '">' + a.total_pct + '%</span></li>'; }).join('') : empty('No audits yet')) + '</ul></div>';
+  var sid = curStore(), date = q('date') || S.today;
+  return Promise.all([call('storeAuditForm', { store_id: sid, date: date }), call('storeAudits', {})]).then(function (x) {
+    var f = x[0], past = x[1], hn = f.hints, yn = [['yes', 'Yes'], ['no', 'No'], ['na', 'NA']];
+    var hint = { 5: 'Today: ' + hn.present + ' of ' + hn.team + ' team checked in' + (hn.late ? ', ' + hn.late + ' late' : ''), 6: hn.promoters ? hn.promotersPresent + ' of ' + hn.promoters + ' promoters checked in' : '',
+      7: hn.recon ? 'Cash tally ' + hn.recon.status + '. Diff cash ' + inr(hn.recon.var_cash) + ', card ' + inr(hn.recon.var_card) + ', UPI ' + inr(hn.recon.var_upi) : 'No cash tally submitted for this date' };
+    var item = function (t) { return '<div class="chk" data-item="' + t.id + '"><span class="q">' + h(t.text) + '</span>' + chips('v_' + t.id, yn, '') + '<input name="r_' + t.id + '" placeholder="Remark (optional)" style="margin-top:6px"><div class="hidden mt" id="ph_' + t.id + '">' + cam('p_' + t.id, 'audit', 'Photo (optional)', { store: f.store.id }) + '</div></div>'; };
+    var num = function (nm) { return '<input name="' + nm + '" inputmode="numeric" style="width:70px;text-align:right">'; };
+    var stockT = '<table><tr><th>Brand</th><th class="r">System</th><th class="r">Physical</th><th class="r">Diff</th></tr>' + f.brands.map(function (b, i) { return '<tr><td>' + h(b) + '<input type="hidden" name="sb_' + i + '" value="' + h(b) + '"></td><td class="r">' + num('ss_' + i) + '</td><td class="r">' + num('sp_' + i) + '</td><td class="r" id="sd_' + i + '"></td></tr>'; }).join('') +
+      '<tr><td><b>Total</b></td><td class="r" id="st_s"></td><td class="r" id="st_p"></td><td class="r" id="st_d"></td></tr></table>';
+    var top5 = '<h4 class="sec">Top 5 mismatch styles</h4><table><tr><th>Style</th><th>Brand</th><th class="r">Sys</th><th class="r">Phy</th></tr>' + [0, 1, 2, 3, 4].map(function (i) { return '<tr><td><input name="ts_' + i + '" placeholder="Style"></td><td><select name="tb_' + i + '">' + opt([['', '']].concat(f.brands.map(function (b) { return [b, b]; })), '') + '</select></td><td class="r">' + num('tsy_' + i) + '</td><td class="r">' + num('tph_' + i) + '</td></tr>'; }).join('') + '</table>';
+    var sec11 = f.open.length ? f.open.map(function (a) { return '<div class="chk"><span class="q">' + h(a.item) + '</span><span class="small muted"> ' + dLabel(a.date) + (n(a.carried) ? ', carried ' + a.carried + 'x' : '') + (a.remark ? '. ' + h(a.remark) : '') + '</span>' + chips('c_' + a.id, [['closed', 'Closed'], ['open', 'Still open']], 'open') + '<input name="cr_' + a.id + '" placeholder="Remark (optional)" style="margin-top:6px"></div>'; }).join('') : empty('No open actions from earlier audits');
+    $app.innerHTML = '<h2>📝 Store audit</h2><div id="gps" class="small"></div><div class="filters">' + storePicker('ast', f.store.id) + '<label>Date<input type="date" id="adt" value="' + f.date + '" max="' + S.today + '"></label></div>' +
+      '<div class="card row-between"><span><b>' + h(f.store.name) + '</b><br><span class="small muted">Score updates as you fill</span></span><span class="pill none" id="score">0%</span></div>' +
+      '<form id="af">' + f.sections.map(function (sec) {
+        var body = sec[0] === 11 ? sec11 : (sec[0] === 1 ? stockT + top5 : '') + f.items.filter(function (t) { return t.section === sec[0]; }).map(item).join('');
+        return '<h4 class="sec">' + sec[0] + '. ' + h(sec[1]) + '</h4><div class="card">' + (hint[sec[0]] ? '<p class="small muted">' + h(hint[sec[0]]) + '</p>' : '') + body + '</div>';
+      }).join('') + '<div class="card stack"><label>Summary<textarea name="summary" rows="3"></textarea></label><div id="acts" class="small"></div><button class="primary block big">Save audit</button><p class="tiny muted">Every No and every brand stock mismatch becomes an action and a store task. Open actions come back in section 11 next time.</p></div></form>' +
+      '<h4 class="sec">Audit history</h4><div class="card"><ul class="list">' + (past.length ? past.map(function (a) { return '<li' + (a.kind === 'checklist' ? ' data-go="/audit/view/' + a.id + '" style="cursor:pointer"' : '') + '><span>' + h(a.store) + '<br><span class="small muted">' + dLabel(a.date) + ' · ' + h(a.auditor_name) + (a.kind === 'old' ? ' · old format' : ' · ' + n(a.new_actions) + ' new, ' + n(a.closed_actions) + ' closed' + (n(a.mismatch) ? ', stock diff ' + a.mismatch : '')) + '</span></span><span class="pill ' + cls(a.pct) + '">' + a.pct + '%</span></li>'; }).join('') : empty('No audits yet')) + '</ul></div>';
     getGeo('gps');
-    $('af').onsubmit = function (e) { e.preventDefault(); var d = formData(e.target), scores = {}, notes = {}; areas.forEach(function (a) { scores[a.id] = d['s' + a.id]; notes[a.id] = d['n' + a.id]; });
-      call('saveAudit', Object.assign({ store_id: $('ast') ? $('ast').value : curStore(), scores: scores, notes: notes, summary: d.summary, photo_ids: [CAM.a1, CAM.a2].filter(Boolean) }, geoData())).then(function (r) { toast('Audit saved: ' + r.total_pct + '%'); route(); }).catch(fail); };
+    var nav = function () { go('/audit?store=' + ($('ast') ? $('ast').value : f.store.id) + '&date=' + $('adt').value); }; if ($('ast')) $('ast').onchange = nav; $('adt').onchange = nav;
+    var fm = $('af');
+    var calc = function () {
+      var d = formData(fm), y = 0, no = 0, acts = [], ts = 0, tp = 0, td = 0, any = false;
+      f.brands.forEach(function (b, i) { var a = d['ss_' + i], c = d['sp_' + i]; if (a === '' && c === '') { $('sd_' + i).innerHTML = ''; return; } any = true; var df = n(c) - n(a); ts += n(a); tp += n(c); td += Math.abs(df); $('sd_' + i).innerHTML = '<b class="' + (df ? 'low' : 'good') + '">' + (df > 0 ? '+' : '') + df + '</b>'; if (df) acts.push('Stock mismatch ' + b + ' (' + (df > 0 ? '+' : '') + df + ')'); });
+      $('st_s').textContent = any ? ts : ''; $('st_p').textContent = any ? tp : ''; $('st_d').innerHTML = any ? '<b class="' + (td ? 'low' : 'good') + '">' + td + '</b>' : '';
+      f.items.forEach(function (t) { var v = d['v_' + t.id]; if (t.id === 's1' && !v && any) v = td ? 'no' : 'yes'; if (v === 'yes') y++; if (v === 'no') { no++; acts.push(t.text); } $('ph_' + t.id).classList.toggle('hidden', v !== 'no'); });
+      f.open.forEach(function (a) { if (d['c_' + a.id] === 'closed') y++; else no++; });
+      var p = y + no ? Math.round(y * 100 / (y + no)) : 0, sc = $('score'); sc.textContent = p + '%'; sc.className = 'pill ' + (y + no ? (p >= 90 ? 'good' : p >= 75 ? 'mid' : 'low') : 'none');
+      $('acts').innerHTML = acts.length ? '<b>Action list (' + acts.length + ')</b><ul>' + acts.map(function (x) { return '<li>' + h(x) + '</li>'; }).join('') + '</ul>' : '<span class="muted">No new actions yet</span>';
+    };
+    fm.addEventListener('change', calc); fm.addEventListener('input', calc); calc();
+    fm.onsubmit = function (e) {
+      e.preventDefault(); var d = formData(fm), answers = {}, carry = {}, stock = [], top = [], miss = [];
+      f.items.forEach(function (t) { if (!d['v_' + t.id] && t.id !== 's1') miss.push(t.text); answers[t.id] = { v: d['v_' + t.id] || '', r: d['r_' + t.id] || '', p: CAM['p_' + t.id] || '' }; if (!answers[t.id].v) delete answers[t.id]; });
+      if (miss.length && !confirm(miss.length + ' item(s) not answered will be saved as NA. Save anyway?')) return;
+      f.brands.forEach(function (b, i) { if (d['ss_' + i] !== '' || d['sp_' + i] !== '') stock.push({ brand: b, system: d['ss_' + i], physical: d['sp_' + i] }); });
+      [0, 1, 2, 3, 4].forEach(function (i) { if (d['ts_' + i]) top.push({ style: d['ts_' + i], brand: d['tb_' + i], system: d['tsy_' + i], physical: d['tph_' + i] }); });
+      f.open.forEach(function (a) { carry[a.id] = { v: d['c_' + a.id], r: d['cr_' + a.id] || '' }; });
+      var btn = fm.querySelector('button.primary'); btn.disabled = true;
+      call('saveStoreAudit', Object.assign({ store_id: f.store.id, date: f.date, answers: answers, stock: stock, top5: top, carry: carry, summary: d.summary }, geoData())).then(function (r) { toast('Audit saved: ' + r.score_pct + '%. ' + r.new_actions + ' new action(s), ' + r.closed + ' closed, ' + r.still_open + ' still open'); go('/audit/view/' + r.id); }).catch(function (err) { btn.disabled = false; fail(err); });
+    };
+  });
+}, 'audit');
+on(/^\/audit\/view\/(\d+)$/, function (id) {
+  return call('storeAuditDetail', { id: id }).then(function (r) {
+    var a = r.audit, lab = { yes: '<b class="good">Yes</b>', no: '<b class="low">No</b>', na: '<span class="muted">NA</span>' };
+    var stock = r.stock.length ? '<table><tr><th>Brand</th><th class="r">System</th><th class="r">Physical</th><th class="r">Diff</th></tr>' + r.stock.map(function (s) { return '<tr><td>' + h(s.brand) + '</td><td class="r">' + s.system + '</td><td class="r">' + s.physical + '</td><td class="r"><b class="' + (s.diff ? 'low' : 'good') + '">' + s.diff + '</b></td></tr>'; }).join('') + '</table>' : '';
+    var top = r.top5.length ? '<h4 class="sec">Top mismatch styles</h4><table>' + r.top5.map(function (s) { return '<tr><td>' + h(s.style) + '</td><td>' + h(s.brand) + '</td><td class="r">' + s.system + ' / ' + s.physical + '</td></tr>'; }).join('') + '</table>' : '';
+    $app.innerHTML = '<h2>📝 Audit: ' + h(r.store) + '</h2><div class="card row-between"><span>' + dLabel(a.date) + ' · ' + h(a.auditor_name) + '<br><span class="small muted">Yes ' + a.yes + ', No ' + a.no + ', NA ' + a.na + '</span></span><span class="pill ' + cls(a.score_pct >= 90 ? 100 : a.score_pct) + '">' + a.score_pct + '%</span></div>' +
+      '<h4 class="sec">Actions</h4><div class="card"><ul class="list">' + (r.actions.length ? r.actions.map(function (x) { return '<li><span>' + h(x.item) + (x.remark ? '<br><span class="small muted">' + h(x.remark) + '</span>' : '') + '</span><span class="pill ' + (x.status === 'closed' ? 'good' : 'low') + '">' + (Number(x.closed_audit_id) === Number(a.id) ? 'closed now' : x.status) + '</span></li>'; }).join('') : empty('No actions')) + '</ul></div>' +
+      r.sections.filter(function (s) { return s[0] < 11; }).map(function (s) { return '<h4 class="sec">' + s[0] + '. ' + h(s[1]) + '</h4><div class="card">' + (s[0] === 1 ? stock + top : '') + r.items.filter(function (t) { return t.section === s[0]; }).map(function (t) { var x = r.answers[t.id] || {}; return '<div class="chk"><span class="q">' + h(t.text) + '</span> ' + (lab[x.v] || '') + (x.r ? '<br><span class="small muted">' + h(x.r) + '</span>' : '') + (x.p ? '<img id="vp_' + t.id + '" class="thumb hidden">' : '') + '</div>'; }).join('') + '</div>'; }).join('') +
+      (a.summary ? '<div class="card"><b>Summary</b><p>' + h(a.summary) + '</p></div>' : '') + '<button class="block mt" data-go="/audit">Back to audits</button>';
+    r.items.forEach(function (t) { var x = r.answers[t.id] || {}; if (x.p) showPhoto(x.p, 'vp_' + t.id); });
   });
 }, 'audit');
 on(/^\/review$/, function () {
