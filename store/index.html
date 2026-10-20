@@ -394,6 +394,7 @@ on(/^\/password$/, function () {
 
 // ---------- My Day (staff / manager / promoter) ----------
 on(/^\/home$/, function () {
+  call('awardsBoard').then(function (b) { var tick = function (n) { var el = $('board'); if (el) el.innerHTML = boardCard(b); else if (n) setTimeout(function () { tick(n - 1); }, 300); }; tick(10); }).catch(function () {});
   return call('home').then(function (r) {
     var first = S.user.name.split(' ')[0], tiles = [];
     var t = function (go, icon, label, hi, state, sub, dot) { return '<a class="tile ' + (state || '') + '" href="#" data-go="' + go + '"><span>' + icon + '</span>' + T(label, hi) + (sub ? '<small>' + h(sub) + '</small>' : '') + (dot ? '<i class="dot">' + dot + '</i>' : '') + '</a>'; };
@@ -419,6 +420,7 @@ on(/^\/home$/, function () {
       (r.storeMoney ? '<div class="card"><b>' + h(r.store.name) + ' (store)</b>' + barB('Store today', '', r.storePerf.today) + barB(r.storePerf.jc.name, '', r.storePerf.jc) + barB('Store month', '', r.storePerf.mtd) + '</div>' + planCard(r.storePlan, 'Store plan (Rs)') : (r.storePerf ? '<div class="card"><div class="row-between"><b>Store today</b><span class="pill ' + cls(r.storePerf.today.p) + '">' + (r.storePerf.today.p || 0) + '%</span></div><p class="small muted" style="margin:4px 0 0">' + h(r.storePerf.jc.name || 'JC') + ' ' + (r.storePerf.jc.p || 0) + '% · MTD ' + (r.storePerf.mtd.pExp || 0) + '% of target due till today</p></div>' : '')) +
       (r.dayclose && !r.dayclose.done && can('perf_entry') ? '<a href="#" data-go="/dayclose" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🧮 Day close entry pending</b><br><span class="small muted">' + (r.dayclose.footfall === false ? 'Footfall, lost customers and your walk-ins. ' : 'Your customers attended and converted. ') + 'Needed before the closing checklist.</span></a>' : '') +
       (r.training && r.training.done < r.training.total ? '<a href="#" data-go="/training" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🎓 Training pending: ' + (r.training.total - r.training.done) + ' module(s)</b><br><span class="small muted">Finish your training (ट्रेनिंग पूरी करें). Tap to start.</span></a>' : '') +
+      '<div id="board"></div>' +
       '<div class="tiles">' + tiles.join('') + '</div>' +
       (r.tasks.length ? '<div class="card"><div class="sec-title"><h3>To do</h3><a href="#" data-go="/tasks" class="small">All</a></div><ul class="list">' + r.tasks.map(taskLine).join('') + '</ul></div>' : '');
   });
@@ -804,9 +806,11 @@ function waCard(r) {
 }
 on(/^\/dashboard$/, function () {
   var date = q('date') || S.today;
+  call('awardsBoard').then(function (x) { var tick = function (n) { var el = $('board'); if (el) el.innerHTML = boardCard(x); else if (n) setTimeout(function () { tick(n - 1); }, 300); }; tick(10); }).catch(function () {});
   return call('dashboard', { date: date }).then(function (r) {
     var t = r.tot;
     $app.innerHTML = '<div class="row-between"><h2>📊 Dashboard</h2><input type="date" id="dd" value="' + date + '" style="width:auto"></div>' +
+      '<div id="board"></div>' +
       '<div class="kpis">' + kpi('Sales ' + dLabel(date), inr(t.sales), (pct(t.sales, t.target) || 0) + '% of ' + inr(t.target)) + kpi('Opened on time', t.onTime + ' / ' + r.stores.length) + kpi('Staff present', t.present + ' / ' + t.staff) + kpi('Untagged / online', inr(t.untagged) + ' / ' + inr(t.online)) + '</div>' +
       r.stores.map(function (s) {
         var bad = s.lateOpen || !s.openedAt || (s.recon && s.recon.any_over) || s.outside, p = s.perf;
@@ -894,6 +898,12 @@ on(/^\/admin$/, function () {
 }, 'admin');
 
 // ---------- Phase 2 placeholders ----------
+function boardCard(b) {
+  if (!b || !b.date) return '';
+  return '<div class="card"><div class="row-between"><h3>⭐ Performances of the day</h3><span class="small muted">' + dLabel(b.date) + '</span></div>' + (b.awards.length ? '<ul class="list">' + b.awards.map(function (a) { return '<li' + (a.me ? ' style="background:#fde8f3;border-radius:8px"' : '') + '><span><b>' + h(a.label) + '</b><br>' + h(a.name) + (a.name !== a.store ? ' <span class="small muted">· ' + h(a.store) + '</span>' : '') + '</span><span class="small" style="text-align:right">' + h(a.text) + '</span></li>'; }).join('') + '</ul>' : empty('No awards (not enough data that day)')) +
+    (b.streak || b.badges.length ? '<p class="small mt">' + (b.streak ? '🔥 Your award streak: <b>' + b.streak + ' day(s)</b>. ' : '') + (b.badges.length ? 'Your badges: ' + b.badges.map(function (x) { return h(x.label) + ' x' + x.n; }).join(', ') : '') + '</p>' : '') +
+    (b.hall.length ? '<details class="mt"><summary class="small"><b>🏛️ Hall of fame, ' + h(b.month) + '</b></summary><ul class="list small">' + b.hall.map(function (x, i) { return '<li><span>' + (i + 1) + '. ' + h(x.name) + ' <span class="muted">· ' + h(x.store) + '</span></span><b>' + x.n + ' award' + (x.n > 1 ? 's' : '') + '</b></li>'; }).join('') + '</ul></details>' : '') + '</div>';
+}
 // ---------- store performance ----------
 on(/^\/dayclose$/, function () {
   var date = q('date') || S.today;
@@ -941,6 +951,7 @@ on(/^\/perf$/, function () {
       r.compare.map(function (c) { return '<tr data-go="/perf?store=' + c.store_id + '&date=' + r.date + '&period=' + r.period + '" style="cursor:pointer"><td>' + h(c.store) + '</td><td class="r">' + rs(c.sales) + '</td><td class="r">' + pc(c.targetPct) + '</td><td class="r">' + (c.lyLoaded ? sg(c.lyPct) : '<span class="tiny muted">LY not loaded</span>') + '</td><td class="r">' + c.invoices + '</td><td class="r">' + rs(c.atv) + '</td><td class="r">' + (c.upt == null ? '-' : c.upt) + '</td><td class="r">' + (c.footfall == null ? '-' : c.footfall) + '</td><td class="r">' + pc(c.conversion) + '</td><td class="r">' + (c.repeat ? pc(c.repeat.pct) : '-') + '</td><td class="r">' + c.lost + '</td></tr>'; }).join('') + '</table></div>';
     if (r.store) html += '<h4 class="sec">' + h(r.store.store) + '</h4>' + kp(r.store);
     if (r.team) html += '<h4 class="sec">Team</h4>' + teamT(r.team);
+    if (r.insights) html += '<h4 class="sec">💡 Observations</h4><div class="card">' + (r.insights.length ? '<ul class="list">' + r.insights.map(function (x) { return '<li><span>' + ({ risk: '🔴', watch: '🟠', good: '🟢', info: '💬' }[x.sev] || '') + ' ' + h(x.text) + '<br><span class="tiny muted">' + dLabel(x.date) + (x.store ? ' · ' + h(x.store) : '') + '</span></span></li>'; }).join('') + '</ul>' : empty('No observations yet. They are written automatically every night and after each Fusion import.')) + (can('admin') ? '<button class="sm mt" id="insnow">Refresh observations and awards now</button>' : '') + '</div>';
     if (r.flags) html += r.flags.length ? flagList(r.flags) : '<div class="card"><b class="good">✓ No discrepancy flags</b> <span class="small muted">(last 10 days of the period)</span></div>';
     if (can('cust_import') || can('sales_import')) html += '<h4 class="sec" id="imports">📥 Data imports</h4>' +
       (can('sales_import') ? '<div class="card stack"><b>1. Last year (LY) sales</b><p class="small muted">Needed for Sales vs LY and ATV vs LY. Upload last year\'s Fusion "Sale Customerwise" export (CSV or XLSX, same format as the normal import). Only store bills are used; online orders are excluded. Re-uploading a day replaces it.</p><input type="file" id="lyf" accept=".csv,.xlsx,.xls,text/csv"><button class="sm primary" id="lyb">Load LY data</button></div>' : '') +
@@ -951,6 +962,7 @@ on(/^\/perf$/, function () {
     var nav = function (per) { go('/perf?date=' + $('pdt').value + '&period=' + (per || r.period) + ($('pst') && $('pst').value ? '&store=' + $('pst').value : '')); };
     $('pdt').onchange = function () { nav(); }; if ($('pst')) $('pst').onchange = function () { nav(); };
     Array.prototype.forEach.call(document.querySelectorAll('[data-per]'), function (b) { b.onclick = function () { nav(b.getAttribute('data-per')); }; });
+    if ($('insnow')) $('insnow').onclick = function () { call('runInsightsNow', { date: r.date }).then(function (x) { toast(x.insights + ' observations, ' + x.awards + ' awards'); route(); }).catch(fail); };
     if ($('goimp')) $('goimp').onclick = function (e) { e.preventDefault(); $('imports').scrollIntoView(); };
     if ($('lyb')) $('lyb').onclick = function () { var f = $('lyf').files[0]; if (!f) return toast('Choose the file first', 'err');
       readTable(f).then(function (csv) { return call('importLY', { csv: csv, preview: true }).then(function (p) { if (!confirm('LY file: ' + p.bills + ' bills, ' + p.days + ' store-days, ' + dLabel(p.from) + ' ' + String(p.from).slice(0, 4) + ' to ' + dLabel(p.to) + ' ' + String(p.to).slice(0, 4) + (p.unmatchedStores.length ? '. Unmatched stores: ' + p.unmatchedStores.join(', ') : '') + '. Load it?')) return;
