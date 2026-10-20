@@ -155,6 +155,8 @@ pre.wa{white-space:pre-wrap;background:#effae9;border:1px solid #d3ecc6;padding:
 .cambtn.ok{border-style:solid;border-color:var(--good);background:#eefaf3;color:var(--good)}
 .cambtn.busy{opacity:.6}.cambtn input{display:none}
 .thumb{width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:6px;border:1px solid var(--line)}
+.tbar{height:8px;background:#eee;border-radius:99px;overflow:hidden}.tbar i{display:block;height:100%;background:var(--good)}
+.opt{display:block;padding:10px;border:1px solid var(--line);border-radius:10px;margin:4px 0;font-weight:500}
 .chk{border-bottom:1px solid var(--line);padding:10px 0}.chk:last-child{border-bottom:0}
 .chk .q{font-weight:600}.chk .hi{display:block;font-weight:500;color:var(--muted);font-size:.82rem}
 .yn{display:flex;gap:8px;margin-top:6px}.yn label{flex:1;margin:0}.yn input{position:absolute;opacity:0}
@@ -403,6 +405,7 @@ on(/^\/home$/, function () {
       tiles.push(t('/checklist/closing', '🔒', 'Closing', 'क्लोज़िंग', r.closing ? 'done' : '', r.closing ? timeOnly(r.closing.at) : 'At night'));
       tiles.push(t('/petty', '🧾', 'Petty cash', 'खर्चा', '', 'Bal ' + inr(r.petty)));
     }
+    if (r.training && can('training')) tiles.push(t('/training', '🎓', 'Training', 'ट्रेनिंग', r.training.done >= r.training.total ? 'done' : 'todo', r.training.done + '/' + r.training.total + ' passed', r.training.done < r.training.total ? r.training.total - r.training.done : ''));
     tiles.push(t('/lost', '❌', 'Lost sale', 'छूटी बिक्री', '', 'Size / colour'));
     tiles.push(t('/offers', '🏷️', 'Offers', 'ऑफ़र', r.offers ? 'todo' : '', r.offers ? r.offers + ' new' : 'All read', r.offers || ''));
     tiles.push(t('/circulars', '📢', 'Circulars', 'सूचना', r.circulars ? 'todo' : '', r.circulars ? r.circulars + ' unread' : 'All read', r.circulars || ''));
@@ -412,6 +415,7 @@ on(/^\/home$/, function () {
       (p ? '<div class="card">' + barB('My sale today', '', p.today) + barB(p.jc.name, p.jc.daysLeft ? (p.jc.daysLeft === 1 ? 'last day' : p.jc.daysLeft + ' days left') : '', p.jc) +
         (p.jc.runRate ? '<p class="small" style="margin:0">Need <b>' + inr(p.jc.runRate) + '/day</b> to finish this JC</p>' : '') + '</div>' : '') + planCard(r.plan) +
       (r.storeMoney ? '<div class="card"><b>' + h(r.store.name) + ' (store)</b>' + barB('Store today', '', r.storePerf.today) + barB(r.storePerf.jc.name, '', r.storePerf.jc) + barB('Store month', '', r.storePerf.mtd) + '</div>' + planCard(r.storePlan, 'Store plan (Rs)') : (r.storePerf ? '<div class="card"><div class="row-between"><b>Store today</b><span class="pill ' + cls(r.storePerf.today.p) + '">' + (r.storePerf.today.p || 0) + '%</span></div><p class="small muted" style="margin:4px 0 0">' + h(r.storePerf.jc.name || 'JC') + ' ' + (r.storePerf.jc.p || 0) + '% · MTD ' + (r.storePerf.mtd.pExp || 0) + '% of target due till today</p></div>' : '')) +
+      (r.training && r.training.done < r.training.total ? '<a href="#" data-go="/training" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🎓 Training pending: ' + (r.training.total - r.training.done) + ' module(s)</b><br><span class="small muted">Finish your training (ट्रेनिंग पूरी करें). Tap to start.</span></a>' : '') +
       '<div class="tiles">' + tiles.join('') + '</div>' +
       (r.tasks.length ? '<div class="card"><div class="sec-title"><h3>To do</h3><a href="#" data-go="/tasks" class="small">All</a></div><ul class="list">' + r.tasks.map(taskLine).join('') + '</ul></div>' : '');
   });
@@ -424,7 +428,7 @@ on(/^\/quick$/, function () {
 on(/^\/more$/, function () {
   var L = [['/offers', '🏷️ Offers board', 'offers_read'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
     ['/ranking', '🏆 All-store ranking', 'ranking'], ['/team', '👥 Team attendance', 'team_attendance'], ['/cash', '💵 Cash tally', 'cash'], ['/cash-all', '💵 Cash tallies (all stores)', 'cash_view_all'], ['/petty', '🧾 Petty cash', 'petty'],
-    ['/manual', '✍️ Manual sales (if Fusion import is late)', 'sales_manual'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'],
+    ['/manual', '✍️ Manual sales (if Fusion import is late)', 'sales_manual'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'], ['/training', '🎓 Training', 'training'], ['/training-team', '🎓 Team training progress', 'training_team'],
     ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
   $app.innerHTML = '<h2>More</h2><div class="card"><ul class="list">' + L.filter(function (x) { return !x[2] || can(x[2]); }).map(function (x) { return '<li><a href="#" data-go="' + x[0] + '">' + x[1] + '</a><span class="muted">›</span></li>'; }).join('') + '</ul></div>' +
     '<div class="card row-between"><span>' + h(S.user.name) + '<br><span class="small muted">' + h(S.user.role_label) + ' · ' + h(S.user.username) + '</span></span><button class="danger" id="logout">Sign out</button></div>';
@@ -887,6 +891,51 @@ on(/^\/admin$/, function () {
 }, 'admin');
 
 // ---------- Phase 2 placeholders ----------
+// ---------- training ----------
+on(/^\/training$/, function () {
+  return call('myTraining').then(function (r) {
+    var st = r.status;
+    $app.innerHTML = '<h2>🎓 ' + T('My Training', 'मेरी ट्रेनिंग') + '</h2><div class="card"><div class="row-between"><b>' + st.done + ' of ' + st.total + ' modules passed</b><span class="pill ' + cls(st.pct) + '">' + st.pct + '%</span></div><div class="tbar mt"><i style="width:' + st.pct + '%"></i></div>' +
+      (st.done === st.total && st.total ? '<p class="good mt"><b>🏅 All training complete. Well done, ' + h(r.name) + '!</b></p>' : '<p class="small muted mt">Read the cards, then take the quiz. Pass mark 80%. You can retake any time.</p>') + '</div>' +
+      '<div class="card"><ul class="list">' + r.modules.map(function (m) { var x = st.by[m.no] || {};
+        return '<li data-go="/training/' + m.no + '" style="cursor:pointer"><span><b>' + m.no + '. ' + h(m.title) + '</b><br><span class="small muted">' + h(m.title_hi || '') + ' · ' + m.cards + ' cards, ' + m.questions + ' questions' + (x.attempts ? ' · best ' + x.best + '%, ' + x.attempts + ' attempt(s)' : '') + '</span></span>' +
+          (x.passed ? '<span class="pill good">🏅 Passed ' + dLabel(x.passed) + '</span>' : '<span class="pill ' + (x.attempts ? 'low' : 'none') + '">' + (x.attempts ? 'Retake' : 'Start') + '</span>') + '</li>'; }).join('') + '</ul></div>' +
+      (can('training_team') ? '<button class="block" data-go="/training-team">Team training progress</button>' : '');
+  });
+}, 'training');
+on(/^\/training\/(\d+)$/, function (no) {
+  return call('trainingModule', { no: no }).then(function (m) {
+    var i = 0, st = m.status || {};
+    var head = '<h2>🎓 ' + m.no + '. ' + h(m.title) + '</h2>' + (st.passed ? '<div class="card hl"><b>🏅 Certificate: passed on ' + dLabel(st.passed) + ' (best ' + st.best + '%)</b></div>' : '');
+    var card = function () { var c = m.cards[i];
+      $app.innerHTML = head + '<div class="card"><p class="tiny muted">Card ' + (i + 1) + ' of ' + m.cards.length + '</p><h3>' + h(c.title) + '</h3><p>' + h(c.text) + '</p>' + (c.hint ? '<p class="small muted">💡 ' + h(c.hint) + '</p>' : '') + '</div>' +
+        '<div class="btnrow">' + (i ? '<button id="pv">‹ Back</button>' : '') + (i < m.cards.length - 1 ? '<button class="primary" id="nx">Next ›</button>' : '') + '<button class="' + (i === m.cards.length - 1 ? 'primary' : '') + '" id="qz">Take quiz (' + m.quiz.length + ' Q)</button></div>';
+      if ($('pv')) $('pv').onclick = function () { i--; card(); }; if ($('nx')) $('nx').onclick = function () { i++; card(); }; $('qz').onclick = quiz; window.scrollTo(0, 0); };
+    var quiz = function () {
+      $app.innerHTML = head + '<form id="qf">' + m.quiz.map(function (q, k) { return '<div class="card"><b>' + (k + 1) + '. ' + h(q.q) + '</b><div class="stack mt">' + q.o.map(function (o, j) { return '<label class="opt"><input type="radio" name="q' + q.id + '" value="' + j + '"> ' + h(o) + '</label>'; }).join('') + '</div><p class="small hidden" id="rv' + q.id + '"></p></div>'; }).join('') +
+        '<button class="primary block big">Submit quiz</button></form>'; window.scrollTo(0, 0);
+      $('qf').onsubmit = function (e) { e.preventDefault(); var d = formData(e.target), ans = {}, miss = 0; m.quiz.forEach(function (q) { ans[q.id] = d['q' + q.id]; if (d['q' + q.id] == null) miss++; });
+        if (miss && !confirm(miss + ' question(s) not answered. Submit anyway?')) return;
+        var b = e.target.querySelector('button.primary'); b.disabled = true;
+        call('submitQuiz', { no: m.no, answers: ans }).then(function (r) {
+          r.review.forEach(function (x) { var q = m.quiz.filter(function (y) { return y.id === x.id; })[0], el = $('rv' + x.id); el.classList.remove('hidden'); el.innerHTML = x.got === x.right ? '<b class="good">✓ Correct.</b> ' + h(x.explain) : '<b class="low">✗ Answer: ' + h(q.o[x.right]) + '.</b> ' + h(x.explain); });
+          b.outerHTML = '<div class="card ' + (r.pass ? 'hl' : '') + '"><h3>' + (r.pass ? '🏅 Passed! ' : 'Not passed yet. ') + r.score_pct + '% (' + r.correct + '/' + r.total + ')</h3><p class="small muted">Pass mark ' + r.pass_pct + '%. Attempt ' + r.attempts + '.' + (r.pass ? '' : ' Read the answers above and try again.') + '</p><div class="btnrow">' + (r.pass ? '' : '<button class="primary" id="rt">Retake quiz</button>') + '<button data-go="/training">My Training</button></div></div>';
+          toast(r.pass ? 'Passed: ' + r.score_pct + '%' : 'Score ' + r.score_pct + '%. Try again.', r.pass ? 'ok' : 'err'); if ($('rt')) $('rt').onclick = quiz;
+        }).catch(function (err) { b.disabled = false; fail(err); }); };
+    };
+    if (m.cards.length) card(); else quiz();
+  });
+}, 'training');
+on(/^\/training-team$/, function () {
+  var sid = q('store') || '';
+  return call('teamTraining', { store_id: sid }).then(function (r) {
+    $app.innerHTML = '<h2>🎓 Team training</h2>' + (S.stores.length > 1 ? '<div class="filters"><label>Store<select id="tsp">' + opt([['', 'All stores']].concat(S.stores.map(function (s) { return [s.id, s.name]; })), sid) + '</select></label></div>' : '') +
+      '<div class="card"><ul class="list">' + (r.rows.length ? r.rows.map(function (u) { var pend = r.modules.filter(function (m) { return !(u.by[m.no] || {}).passed; });
+        return '<li><span><b>' + h(u.name) + '</b><br><span class="small muted">' + h(u.role) + ' · ' + h(u.store || '') + '</span>' + (pend.length ? '<br><span class="tiny muted">Pending: ' + pend.map(function (m) { var x = u.by[m.no]; return m.no + (x.attempts ? ' (' + x.best + '%)' : ''); }).join(', ') + '</span>' : '') + '</span><span class="pill ' + cls(u.pct) + '">' + (u.done === u.total ? '🏅 ' : '') + u.done + '/' + u.total + '</span></li>'; }).join('') : empty('No team members')) + '</ul></div>' +
+      '<p class="tiny muted">Modules: ' + r.modules.map(function (m) { return m.no + '. ' + h(m.title); }).join(' · ') + '</p>';
+    if ($('tsp')) $('tsp').onchange = function () { go('/training-team?store=' + $('tsp').value); };
+  });
+}, 'training_team');
 on(/^\/phase2$/, function () {
   return call('phase2').then(function (r) {
     $app.innerHTML = '<h2>🎓 Coming in Phase 2</h2><div class="card hl"><p class="small" style="margin:0">Training, quiz and weekly challenges are planned for Phase 2. The Sheet already has the Training, Quiz and Challenges tabs, so content can be added now.</p></div>' +
