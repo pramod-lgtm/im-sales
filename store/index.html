@@ -897,9 +897,11 @@ on(/^\/training$/, function () {
     var st = r.status;
     $app.innerHTML = '<h2>🎓 ' + T('My Training', 'मेरी ट्रेनिंग') + '</h2><div class="card"><div class="row-between"><b>' + st.done + ' of ' + st.total + ' modules passed</b><span class="pill ' + cls(st.pct) + '">' + st.pct + '%</span></div><div class="tbar mt"><i style="width:' + st.pct + '%"></i></div>' +
       (st.done === st.total && st.total ? '<p class="good mt"><b>🏅 All training complete. Well done, ' + h(r.name) + '!</b></p>' : '<p class="small muted mt">Read the cards, then take the quiz. Pass mark 80%. You can retake any time.</p>') + '</div>' +
-      '<div class="card"><ul class="list">' + r.modules.map(function (m) { var x = st.by[m.no] || {};
-        return '<li data-go="/training/' + m.no + '" style="cursor:pointer"><span><b>' + m.no + '. ' + h(m.title) + '</b><br><span class="small muted">' + h(m.title_hi || '') + ' · ' + m.cards + ' cards, ' + m.questions + ' questions' + (x.attempts ? ' · best ' + x.best + '%, ' + x.attempts + ' attempt(s)' : '') + '</span></span>' +
-          (x.passed ? '<span class="pill good">🏅 Passed ' + dLabel(x.passed) + '</span>' : '<span class="pill ' + (x.attempts ? 'low' : 'none') + '">' + (x.attempts ? 'Retake' : 'Start') + '</span>') + '</li>'; }).join('') + '</ul></div>' +
+      (r.levels || [{ level: 1, name: 'Modules', open: true, done: st.done, total: st.total, complete: false, modules: r.modules.map(function (m) { return m.no; }) }]).map(function (L) {
+        var ms = r.modules.filter(function (m) { return L.modules.indexOf(m.no) >= 0; });
+        return '<h4 class="sec">' + (L.complete ? '🏅 ' : L.open ? '' : '🔒 ') + h(L.name) + ' <span class="small muted">' + L.done + '/' + L.total + '</span></h4>' + (L.open ? '' : '<p class="small muted">Opens when all modules of the previous level are passed.</p>') + '<div class="card"><ul class="list">' + ms.map(function (m) { var x = st.by[m.no] || {};
+        return '<li' + (L.open ? ' data-go="/training/' + m.no + '" style="cursor:pointer"' : ' style="opacity:.55"') + '><span><b>' + m.no + '. ' + h(m.title) + '</b><br><span class="small muted">' + h(m.title_hi || '') + ' · ' + m.cards + ' cards, ' + m.questions + ' questions' + (x.attempts ? ' · best ' + x.best + '%, ' + x.attempts + ' attempt(s)' : '') + '</span></span>' +
+          (x.passed ? '<span class="pill good">🏅 Passed ' + dLabel(x.passed) + '</span>' : !L.open ? '<span class="pill none">🔒</span>' : '<span class="pill ' + (x.attempts ? 'low' : 'none') + '">' + (x.attempts ? 'Retake' : 'Start') + '</span>') + '</li>'; }).join('') + '</ul></div>'; }).join('') +
       (can('training_team') ? '<button class="block" data-go="/training-team">Team training progress</button>' : '');
   });
 }, 'training');
@@ -933,7 +935,7 @@ on(/^\/training-team$/, function () {
   return call('teamTraining', { store_id: sid }).then(function (r) {
     $app.innerHTML = '<h2>🎓 Team training</h2>' + (S.stores.length > 1 ? '<div class="filters"><label>Store<select id="tsp">' + opt([['', 'All stores']].concat(S.stores.map(function (s) { return [s.id, s.name]; })), sid) + '</select></label></div>' : '') +
       '<div class="card"><ul class="list">' + (r.rows.length ? r.rows.map(function (u) { var pend = r.modules.filter(function (m) { return !(u.by[m.no] || {}).passed; });
-        return '<li><span><b>' + h(u.name) + '</b><br><span class="small muted">' + h(u.role) + ' · ' + h(u.store || '') + '</span>' + (pend.length ? '<br><span class="tiny muted">Pending: ' + pend.map(function (m) { var x = u.by[m.no]; return m.no + (x.attempts ? ' (' + x.best + '%)' : ''); }).join(', ') + '</span>' : '') + '</span><span class="pill ' + cls(u.pct) + '">' + (u.done === u.total ? '🏅 ' : '') + u.done + '/' + u.total + '</span></li>'; }).join('') : empty('No team members')) + '</ul></div>' +
+        return '<li><span><b>' + h(u.name) + '</b><br><span class="small muted">' + h(u.role) + ' · ' + h(u.store || '') + (u.level ? ' · ' + h(u.level) : '') + '</span>' + (pend.length ? '<br><span class="tiny muted">Pending: ' + pend.map(function (m) { var x = u.by[m.no]; return m.no + (x.attempts ? ' (' + x.best + '%)' : ''); }).join(', ') + '</span>' : '') + '</span><span class="pill ' + cls(u.pct) + '">' + (u.done === u.total ? '🏅 ' : '') + u.done + '/' + u.total + '</span></li>'; }).join('') : empty('No team members')) + '</ul></div>' +
       '<p class="tiny muted">Modules: ' + r.modules.map(function (m) { return m.no + '. ' + h(m.title); }).join(' · ') + '</p>';
     if ($('tsp')) $('tsp').onchange = function () { go('/training-team?store=' + $('tsp').value); };
   });
