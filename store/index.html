@@ -271,10 +271,12 @@ var NAV = 0, ROUTE_TAG = 0; // a screen only draws data for the navigation that 
 /** Speed: screens show the last data saved on this phone at once, then refresh from the server in the background (and redraw only if something changed). */
 var SWR_ACTIONS = { boot: 0, home: 1, dashboard: 1, storePerf: 1, categoryPerf: 1, perfBoards: 1, metricHelp: 1, awardsBoard: 1, ranking: 1, kamai: 1, kamaiOf: 1, storeSales: 1, photosDay: 1, photoGallery: 1, myTraining: 1, teamTraining: 1, offers: 1, circulars: 1, schemeBoards: 1, storeDay: 1, teamAttendance: 1, phase2: 1, photo: 1 };
 var SWR_FRESH_MS = 45000, MEMC = {};
-function swrKey(action, data) { return 'imc:' + ((S.user && S.user.id) || '') + ':' + action + ':' + JSON.stringify(data || {}); }
+var CACHE_VER = 'imc2:', BOOT_KEY = 'imc2_boot';
+function fillBoard(p, nav) { p.then(function (b) { var el = $('board'); if (nav === NAV && el) el.innerHTML = boardCard(b); }); }
+function swrKey(action, data) { return CACHE_VER + ((S.user && S.user.id) || '') + ':' + action + ':' + JSON.stringify(data || {}); }
 function swrGet(k) { if (MEMC[k]) return MEMC[k]; try { var v = store.getItem(k); return v ? (MEMC[k] = JSON.parse(v)) : null; } catch (e) { return null; } }
 function swrPut(k, action, data) { var v = { t: Date.now(), d: data }; MEMC[k] = v; if (action === 'photo') return; try { store.setItem(k, JSON.stringify(v)); } catch (e) { swrClear(); try { store.setItem(k, JSON.stringify(v)); } catch (e2) { /* full */ } } }
-function swrClear() { MEMC = {}; try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('imc:') === 0) localStorage.removeItem(k); }); } catch (e) { /* ignore */ } }
+function swrClear() { MEMC = {}; try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('imc') === 0 && k !== BOOT_KEY) localStorage.removeItem(k); }); } catch (e) { /* ignore */ } }
 function call(action, data) {
   var tag = ROUTE_TAG;
   if (SWR_ACTIONS[action] && S.user) {
@@ -300,7 +302,7 @@ function callNet(action, data, tag) {
 }
 function toast(msg, type) { var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (type || 'ok'); clearTimeout(t._h); t._h = setTimeout(function () { t.className = 'toast hidden'; }, 3800); }
 function fail(e) { if (e && e.stale) return; toast(e.message || String(e), 'err'); }
-function signOutLocal() { swrClear(); try { store.removeItem('imc_boot'); } catch (e) { /* ignore */ } S.token = null; S.user = null; store.removeItem('ims_token'); bridgeSave(null); go('/login'); }
+function signOutLocal() { swrClear(); try { store.removeItem(BOOT_KEY); } catch (e) { /* ignore */ } S.token = null; S.user = null; store.removeItem('ims_token'); bridgeSave(null); go('/login'); }
 
 // ---------- routing ----------
 function go(path) { if (location.hash === '#' + path) route(); else location.hash = path; }
@@ -451,7 +453,7 @@ on(/^\/password$/, function () {
 
 // ---------- My Day (staff / manager / promoter) ----------
 on(/^\/home$/, function () {
-  call('awardsBoard').then(function (b) { var tick = function (n) { var el = $('board'); if (el) el.innerHTML = boardCard(b); else if (n) setTimeout(function () { tick(n - 1); }, 300); }; tick(10); }).catch(function () {});
+  var myNav = NAV, boardP = call('awardsBoard').catch(function () { return null; });
   return call('home').then(function (r) {
     var first = S.user.name.split(' ')[0], tiles = [];
     var t = function (go, icon, label, hi, state, sub, dot) { return '<a class="tile ' + (state || '') + '" href="#" data-go="' + go + '"><span>' + icon + '</span>' + T(label, hi) + (sub ? '<small>' + h(sub) + '</small>' : '') + (dot ? '<i class="dot">' + dot + '</i>' : '') + '</a>'; };
@@ -480,6 +482,7 @@ on(/^\/home$/, function () {
       '<div id="board"></div>' +
       '<div class="tiles">' + tiles.join('') + '</div>' +
       (r.tasks.length ? '<div class="card"><div class="sec-title"><h3>To do</h3><a href="#" data-go="/tasks" class="small">All</a></div><ul class="list">' + r.tasks.map(taskLine).join('') + '</ul></div>' : '');
+    fillBoard(boardP, myNav);
   });
 });
 on(/^\/quick$/, function () {
@@ -882,7 +885,7 @@ function waCard(r) {
 }
 on(/^\/dashboard$/, function () {
   var date = q('date') || S.today;
-  call('awardsBoard').then(function (x) { var tick = function (n) { var el = $('board'); if (el) el.innerHTML = boardCard(x); else if (n) setTimeout(function () { tick(n - 1); }, 300); }; tick(10); }).catch(function () {});
+  var myNav = NAV, boardP = call('awardsBoard').catch(function () { return null; });
   return call('dashboard', { date: date }).then(function (r) {
     var t = r.tot;
     $app.innerHTML = '<div class="row-between"><h2>📊 Dashboard</h2><input type="date" id="dd" value="' + date + '" style="width:auto"></div>' +
@@ -900,6 +903,7 @@ on(/^\/dashboard$/, function () {
       (r.topLost.length ? '<div class="card"><h3>Top lost sales (7 days)</h3><ul class="list">' + r.topLost.map(function (x) { return '<li><span>' + h(x.key) + '</span><b>' + x.n + '</b></li>'; }).join('') + '</ul></div>' : '') +
       waCard(r) +
       (can('admin') ? '<div class="card"><h3>Downloads</h3><div class="btnrow">' + ['attendance', 'sales', 'recon', 'lost', 'incentives'].map(function (k) { return '<button class="sm" data-csv="' + k + '">' + k + ' CSV</button>'; }).join('') + '<button class="sm navy" id="xs">Export all to a new Sheet</button></div></div>' : '');
+    fillBoard(boardP, myNav);
     $('dd').onchange = function () { go('/dashboard?date=' + this.value); };
     all('[data-wa]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-wa'); all('[data-wa]').forEach(function (x) { x.classList.toggle('primary', x === b); x.classList.toggle('ghost', x !== b); }); $('waText').textContent = r[k]; $('waOpen').href = waLink(k === 'whatsappOwner' ? r.owner_whatsapp : '', r[k]); $('cp').onclick = function () { copyText(r[k], this); }; }; });
     if (r.whatsappOwner) all('[data-wa]')[0].onclick(); else $('cp').onclick = function () { copyText(r.whatsapp, this); };
@@ -1179,13 +1183,14 @@ function applyBoot(r) { S.user = r.user; S.perms = r.perms; S.stores = r.stores;
 function startScreen() { if (!location.hash || /^#\/?(login)?$/.test(location.hash)) go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); else route(); }
 /** Opens at once from the last saved login data on this phone, then checks with the server in the background. */
 function boot() {
-  var saved = null; try { saved = JSON.parse(store.getItem('imc_boot') || 'null'); } catch (e) { saved = null; }
+  try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('imc:') === 0 || k === 'imc_boot') localStorage.removeItem(k); }); } catch (e) { /* ignore */ }
+  var saved = null; try { saved = JSON.parse(store.getItem(BOOT_KEY) || 'null'); } catch (e) { saved = null; }
   if (saved && saved.token === S.token && saved.d) {
     applyBoot(saved.d); startScreen();
-    callNet('boot', {}, 0).then(function (r) { var changed = JSON.stringify(r) !== JSON.stringify(saved.d); store.setItem('imc_boot', JSON.stringify({ token: S.token, d: r })); applyBoot(r); if (changed) route(); }).catch(function (e) { if (!S.token) return; if (/sign in/i.test(e.message || '')) signOutLocal(); });
+    callNet('boot', {}, 0).then(function (r) { var changed = JSON.stringify(r) !== JSON.stringify(saved.d); store.setItem(BOOT_KEY, JSON.stringify({ token: S.token, d: r })); applyBoot(r); if (changed) route(); }).catch(function (e) { if (!S.token) return; if (/sign in/i.test(e.message || '')) signOutLocal(); });
     return Promise.resolve();
   }
-  return callNet('boot', {}, 0).then(function (r) { try { store.setItem('imc_boot', JSON.stringify({ token: S.token, d: r })); } catch (e) { /* ignore */ } applyBoot(r); startScreen(); });
+  return callNet('boot', {}, 0).then(function (r) { try { store.setItem(BOOT_KEY, JSON.stringify({ token: S.token, d: r })); } catch (e) { /* ignore */ } applyBoot(r); startScreen(); });
 }
 S.token = store.getItem('ims_token');
 bridgeAsk().then(function (t) {
