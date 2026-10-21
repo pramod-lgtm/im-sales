@@ -183,6 +183,7 @@ table{width:100%;border-collapse:collapse;font-size:.86rem}table th{text-align:l
 .kpis.big .kpi b{font-size:1.5rem}.kpis.big .kpi{padding:12px}.up{color:var(--good);font-weight:700}.down{color:var(--low);font-weight:700}
 details.more>summary{cursor:pointer;font-weight:600;color:#7a3e9d;padding:6px 0}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.skel i{display:block;height:58px;margin:10px 0;border-radius:12px;background:linear-gradient(90deg,#f1ecf4 25%,#faf7fb 50%,#f1ecf4 75%);background-size:200% 100%;animation:sk 1.2s infinite}@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>
 </head>
 <body class="anon">
@@ -244,27 +245,62 @@ var pending = 0;
 function busy(d) { pending += d; $('loading').classList.toggle('hidden', pending <= 0); }
 var API_URL = 'https://script.google.com/macros/s/AKfycbzk7KBrjoilXBvP5528rd-ZCbt6qJ-yC69YonjJRwNgK6mLZ7K0Cx__NVXYPIlPDyRE/exec';
 /** JSON API call: POST text/plain (no CORS preflight); Apps Script redirects to googleusercontent which allows CORS. */
+/** Speed: read calls made in the same moment go to the server as one request ("multi"), when the server supports it. */
+var BATCH = [], BATCH_T = null;
 function api(action, data) {
+  if (S.multi && SWR_ACTIONS[action]) return new Promise(function (res, rej) { BATCH.push({ action: action, data: data || {}, res: res, rej: rej }); if (!BATCH_T) BATCH_T = setTimeout(flushBatch, 0); });
+  return api1(action, data);
+}
+function flushBatch() {
+  var list = BATCH; BATCH = []; BATCH_T = null; if (!list.length) return;
+  if (list.length === 1) { var one = list[0]; return api1(one.action, one.data).then(one.res, one.rej); }
+  api1('multi', { calls: list.map(function (x) { return { action: x.action, data: x.data }; }) }).then(function (r) {
+    if (!r.ok) { if (/^Unknown action/.test(r.error || '')) S.multi = false; return list.forEach(function (x) { api1(x.action, x.data).then(x.res, x.rej); }); }
+    list.forEach(function (x, i) { x.res(r.data[i] || { ok: false, error: 'No answer' }); });
+  }, function (e) { list.forEach(function (x) { x.rej(e); }); });
+}
+function api1(action, data) {
   return fetch(API_URL, { method: 'POST', redirect: 'follow', credentials: 'omit', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ token: S.token, action: action, data: data || {} }) })
     .then(function (res) { if (!res.ok) throw new Error('Server error ' + res.status + '. Try again.'); return res.text(); })
     .then(function (s) { var r; try { r = JSON.parse(s); } catch (e) { throw new Error('Server not updated yet (bad response). Ask admin to redeploy.'); } return r; },
       function (e) { throw new Error(e && /Server/.test(e.message) ? e.message : 'Network problem. Check internet and try again.'); });
 }
+var SKELETON = '<div class="skel"><i style="width:45%;height:22px"></i><i></i><i></i><i style="height:90px"></i><i></i><i style="height:90px"></i></div>';
 var NAV = 0, ROUTE_TAG = 0; // a screen only draws data for the navigation that asked for it (no late, stale screen over a newer one)
+/** Speed: screens show the last data saved on this phone at once, then refresh from the server in the background (and redraw only if something changed). */
+var SWR_ACTIONS = { boot: 0, home: 1, dashboard: 1, storePerf: 1, categoryPerf: 1, perfBoards: 1, metricHelp: 1, awardsBoard: 1, ranking: 1, kamai: 1, kamaiOf: 1, storeSales: 1, photosDay: 1, photoGallery: 1, myTraining: 1, teamTraining: 1, offers: 1, circulars: 1, schemeBoards: 1, storeDay: 1, teamAttendance: 1, phase2: 1, photo: 1 };
+var SWR_FRESH_MS = 45000, MEMC = {};
+function swrKey(action, data) { return 'imc:' + ((S.user && S.user.id) || '') + ':' + action + ':' + JSON.stringify(data || {}); }
+function swrGet(k) { if (MEMC[k]) return MEMC[k]; try { var v = store.getItem(k); return v ? (MEMC[k] = JSON.parse(v)) : null; } catch (e) { return null; } }
+function swrPut(k, action, data) { var v = { t: Date.now(), d: data }; MEMC[k] = v; if (action === 'photo') return; try { store.setItem(k, JSON.stringify(v)); } catch (e) { swrClear(); try { store.setItem(k, JSON.stringify(v)); } catch (e2) { /* full */ } } }
+function swrClear() { MEMC = {}; try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('imc:') === 0) localStorage.removeItem(k); }); } catch (e) { /* ignore */ } }
 function call(action, data) {
-  busy(1); window.__pending = (window.__pending || 0) + 1; var tag = ROUTE_TAG;
+  var tag = ROUTE_TAG;
+  if (SWR_ACTIONS[action] && S.user) {
+    var k = swrKey(action, data), c = swrGet(k);
+    if (c) {
+      if (Date.now() - c.t > SWR_FRESH_MS) callNet(action, data, 0).then(function (fresh) { var changed = JSON.stringify(fresh) !== JSON.stringify(c.d); swrPut(k, action, fresh); if (changed && tag && tag === NAV && action !== 'photo') route(); }).catch(function () {});
+      return Promise.resolve(c.d);
+    }
+    return callNet(action, data, tag).then(function (d) { swrPut(k, action, d); return d; });
+  }
+  return callNet(action, data, tag).then(function (d) { if (!S.multi && !SWR_ACTIONS.hasOwnProperty(action) && ['login', 'logout', 'setLanguage'].indexOf(action) < 0) swrClear(); return d; }); // old server: any other call may have saved data, so drop the phone copy
+}
+function callNet(action, data, tag) {
+  busy(1); window.__pending = (window.__pending || 0) + 1;
   function done() { busy(-1); window.__pending--; }
   return api(action, data).then(function (r) {
     done(); if (tag && tag !== NAV) { var st = new Error('stale'); st.stale = true; throw st; }
     if (!r.ok && /^Unknown action/.test(r.error || '')) { var ua = new Error('This part needs the latest server update. Ask the admin to redeploy the Apps Script (new version).'); ua.missing = true; throw ua; }
+    if (r.w) swrClear(); // the server saved something: phone copies are out of date
     if (!r.ok) { if (r.auth === false && action !== 'login') signOutLocal(); throw new Error(r.error); }
     return r.data;
   }, function (e) { done(); throw e; });
 }
 function toast(msg, type) { var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (type || 'ok'); clearTimeout(t._h); t._h = setTimeout(function () { t.className = 'toast hidden'; }, 3800); }
 function fail(e) { if (e && e.stale) return; toast(e.message || String(e), 'err'); }
-function signOutLocal() { S.token = null; S.user = null; store.removeItem('ims_token'); bridgeSave(null); go('/login'); }
+function signOutLocal() { swrClear(); try { store.removeItem('imc_boot'); } catch (e) { /* ignore */ } S.token = null; S.user = null; store.removeItem('ims_token'); bridgeSave(null); go('/login'); }
 
 // ---------- routing ----------
 function go(path) { if (location.hash === '#' + path) route(); else location.hash = path; }
@@ -282,7 +318,8 @@ function route() {
     var m = p.match(ROUTES[i].re);
     if (m) {
       if (ROUTES[i].perm && !can(ROUTES[i].perm)) { return go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); }
-      window.scrollTo(0, 0); var my = ++NAV, res; ROUTE_TAG = my;
+      window.scrollTo(0, 0); var my = ++NAV, res, first = $app.firstChild; ROUTE_TAG = my;
+      setTimeout(function () { if (my === NAV && $app.firstChild === first) $app.innerHTML = SKELETON; }, 120);
       try { res = ROUTES[i].fn.apply(null, m.slice(1).map(decodeURIComponent)); } finally { ROUTE_TAG = 0; }
       return Promise.resolve(res).catch(function (e) { if (e && e.stale) return; if (my === NAV && /Loading/.test($app.textContent) || (e && e.missing && my === NAV)) $app.innerHTML = '<div class="card center"><p>' + h(e.message || String(e)) + '</p><button class="sm" data-go="/">Home</button></div>'; fail(e); });
     }
@@ -1138,11 +1175,17 @@ on(/^\/phase2$/, function () {
 }, 'phase2');
 
 // ---------- start ----------
+function applyBoot(r) { S.user = r.user; S.perms = r.perms; S.stores = r.stores; S.today = r.today; S.lists = r.lists; S.lang = r.lang || 'en'; S.multi = !!r.speed; }
+function startScreen() { if (!location.hash || /^#\/?(login)?$/.test(location.hash)) go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); else route(); }
+/** Opens at once from the last saved login data on this phone, then checks with the server in the background. */
 function boot() {
-  return call('boot').then(function (r) {
-    S.user = r.user; S.perms = r.perms; S.stores = r.stores; S.today = r.today; S.lists = r.lists; S.lang = r.lang || 'en';
-    if (!location.hash || /^#\/?(login)?$/.test(location.hash)) go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); else route();
-  });
+  var saved = null; try { saved = JSON.parse(store.getItem('imc_boot') || 'null'); } catch (e) { saved = null; }
+  if (saved && saved.token === S.token && saved.d) {
+    applyBoot(saved.d); startScreen();
+    callNet('boot', {}, 0).then(function (r) { var changed = JSON.stringify(r) !== JSON.stringify(saved.d); store.setItem('imc_boot', JSON.stringify({ token: S.token, d: r })); applyBoot(r); if (changed) route(); }).catch(function (e) { if (!S.token) return; if (/sign in/i.test(e.message || '')) signOutLocal(); });
+    return Promise.resolve();
+  }
+  return callNet('boot', {}, 0).then(function (r) { try { store.setItem('imc_boot', JSON.stringify({ token: S.token, d: r })); } catch (e) { /* ignore */ } applyBoot(r); startScreen(); });
 }
 S.token = store.getItem('ims_token');
 bridgeAsk().then(function (t) {
