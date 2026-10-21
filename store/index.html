@@ -378,6 +378,7 @@ HELP_DEF = HELP_DEF.concat([
   { key: 'cust_history', title: 'Customer history', title_hi: 'ग्राहक इतिहास', means: 'Mobile number se customer ki purani kharidari. Past bills of a customer.', how: 'Fusion bills jinke saath mobile aaya, plus manual bills.', example: '3 visits, Rs 12,000, last visit 5 Oct.', tip: 'Pichhli baar ka size aur brand dekh kar wahi naya stock dikhao.' },
   { key: 'jc_cycle', title: 'JC cycle', title_hi: 'जेसी साइकल', means: 'Mahine ke 10 10 din ke hisse (JC1, JC2, JC3). Target har JC ka alag.', how: 'JC sales ÷ JC target × 100.', example: 'JC1 target Rs 1,00,000, sales Rs 80,000 = 80%.', tip: 'Pichhla JC dekho, agle JC mein wahi kami poori karo.' },
   { key: 'yesterday', title: 'Yesterday report', title_hi: 'कल की रिपोर्ट', means: 'Kal ka poora hisaab: sales, target %, bills, pieces, conversion.', how: 'Fusion import ya manual bills se.', example: 'Kal 120% target, 14 bills.', tip: 'Subah team ke saath 2 minute kal ki report dekho.' },
+  { key: 'store_files', title: 'Store files', title_hi: 'स्टोर फ़ाइलें', means: 'Admin / manager ki bheji files: Return list, Pickup list ya Other. Files sent to your store.', how: 'File kholo / download karo. Mil gayi to "Received", kaam ho gaya to "Done" dabao. Kisne aur kab, sab save hota hai.', example: 'Return list Oct (PDF): Received by Sita 10:15, Done by Mgr 4:30.', tip: 'Files hamesha rehti hain, delete nahi hoti. Sirf photo, PDF, Excel, Word, max 10 MB.' },
   { key: 'otp', title: 'Forgot password', title_hi: 'पासवर्ड भूल गए', means: 'Aapke email par 6 digit code aata hai, 10 minute ke liye. Code kisi ko na batayein.', how: 'Username daalo, email se code lo, naya password banao.', example: 'Code 482913.', tip: 'Email nahi hai to owner se reset karwao.' }
 ]);
 function helpMap() { var m = {}; (HELP || HELP_DEF).forEach(function (x) { m[x.key] = x; }); HELP_DEF.forEach(function (x) { if (!m[x.key]) m[x.key] = x; }); return m; }
@@ -894,8 +895,63 @@ on(/^\/tasks$/, function () {
     if ($('tf')) $('tf').onsubmit = function (e) { e.preventDefault(); var d = formData(e.target); d.store_id = d.store_id || curStore(); call('saveTask', d).then(function () { toast('Task added'); route(); }).catch(fail); };
     all('[data-done]').forEach(function (b) { b.onclick = function () { var id = b.getAttribute('data-done'); call('doneTask', { id: id, photo_id: CAM['t' + id] || '' }).then(function () { toast('Done'); route(); }).catch(fail); }; });
     all('[data-ok]').forEach(function (b) { b.onclick = function () { call('reviewTask', { id: b.getAttribute('data-ok') }).then(function () { route(); }).catch(fail); }; });
+    var box = document.createElement('div'); box.id = 'sfiles'; $app.appendChild(box); storeFilesPane(box, open);
   });
 });
+// ---------- store files (Return / Pickup / Other) inside the Tasks pane ----------
+var FILE_KIND = { return: ['↩️ Return', 'वापसी'], pickup: ['📦 Pickup', 'पिकअप'], other: ['📄 Other', 'अन्य'] }, SF_KIND = '';
+function sfKind(k) { var x = FILE_KIND[k] || ['📄 ' + k, '']; return x[0] + ' / ' + x[1]; }
+function storeFilesPane(box, openTasks) {
+  var nav = NAV;
+  call('storeFiles', {}).then(function (r) {
+    if (nav !== NAV || !document.body.contains(box)) return;
+    var rows = r.rows.filter(function (f) { return !SF_KIND || f.kind === SF_KIND; }), todo = r.rows.filter(function (f) { return f.status !== 'done'; }).length;
+    var stLabel = function (f) { return f.status === 'done' ? '<span class="tag ok">✓ Done</span>' : f.status === 'received' ? '<span class="tag new">Received</span>' : '<span class="tag off">New</span>'; };
+    var who = function (f) { return (f.recv_at ? 'Received: ' + h(f.recv_by_name) + ' ' + dt(f.recv_at) : '') + (f.done_at ? ' · Done: ' + h(f.done_by_name) + ' ' + dt(f.done_at) : ''); };
+    var act = S.stores.filter(function (s) { return s.active; });
+    box.innerHTML = '<h4 class="sec">📁 ' + T('Store files', 'स्टोर फ़ाइलें') + (todo ? ' (' + todo + ' new)' : '') + ' ' + ib('store_files') + '</h4>' +
+      (r.canSend ? '<details class="card"><summary>＋ Send file / फ़ाइल भेजें</summary><form id="sff" class="stack mt">' +
+        '<label>Type / प्रकार' + chips('kind', [['return', sfKind('return')], ['pickup', sfKind('pickup')], ['other', sfKind('other')]], 'return') + '</label>' +
+        '<label>Title / शीर्षक<input name="title" required maxlength="120" placeholder="Return list Oct"></label><label>Note / नोट<textarea name="note" rows="2" maxlength="500"></textarea></label>' +
+        (openTasks.length ? '<label>For task (optional) / काम के साथ<select name="task_id">' + opt(openTasks.map(function (t) { return [t.id, t.store + ': ' + t.title]; }), '', 'No task, pick stores below') + '</select></label>' : '') +
+        '<div id="sfst"><span class="small">Stores / स्टोर</span>' + (act.length > 1 ? '<div class="chips">' + act.map(function (s) { return '<label><input type="checkbox" name="sf_store" value="' + s.id + '"><span>' + h(s.name) + '</span></label>'; }).join('') + '</div>' : '<div class="small muted">' + h((act[0] || {}).name || '') + '</div>') + '</div>' +
+        '<label>File / फ़ाइल<input type="file" id="sffile" accept="image/*,.pdf,.xlsx,.xls,.csv,.docx" required></label><p class="tiny muted">Photo, PDF, Excel, Word · max ' + r.maxMb + ' MB. Files kabhi delete nahi hoti / kept forever.</p>' +
+        '<button class="primary block">Send / भेजें</button></form></details>' : '') +
+      '<div class="chips">' + [['', 'All / सब'], ['return', sfKind('return')], ['pickup', sfKind('pickup')], ['other', sfKind('other')]].map(function (k) { return '<label><input type="radio" name="sfk" value="' + k[0] + '"' + (k[0] === SF_KIND ? ' checked' : '') + '><span>' + h(k[1]) + '</span></label>'; }).join('') + '</div>' +
+      (rows.length ? rows.map(function (f) {
+        return '<div class="card"><div class="row-between"><b>' + h(f.title) + '</b>' + stLabel(f) + '</div><p class="small muted" style="margin:2px 0">' + h(sfKind(f.kind)) + ' · ' + h(f.store) + ' · from ' + h(f.sent_by_name) + ' · ' + dt(f.created_at) + (f.task_id ? ' · 📎 task' : '') + '</p>' +
+          (f.note ? '<p class="small" style="margin:2px 0">' + h(f.note) + '</p>' : '') + '<p class="tiny muted" style="margin:2px 0">' + h(f.file_name) + ' · ' + Math.max(1, Math.round(Number(f.bytes) / 1024)) + ' KB' + (who(f) ? '<br>' + who(f) : '') + '</p>' +
+          '<div class="grid2"><button class="sm" data-sfo="' + f.id + '">⬇️ Open / खोलें</button>' + (f.status === 'done' ? '' : f.status === 'received' ? '<button class="navy sm" data-sfa="' + f.id + '" data-st="done">✓ Done / हो गया</button>' : '<button class="navy sm" data-sfa="' + f.id + '" data-st="received">Received / मिल गया</button>') + '</div></div>';
+      }).join('') : '<div class="card">' + empty('No files / कोई फ़ाइल नहीं') + '</div>') +
+      (r.sent && r.sent.length ? '<details class="card"><summary>📊 Sent: store status / भेजी फ़ाइलों की स्थिति</summary><ul class="list">' + r.sent.map(function (g) {
+        return '<li><span><b>' + h(g.title) + '</b> <span class="small muted">' + h(sfKind(g.kind)) + ' · ' + dt(g.created_at) + '</span><br>' + g.stores.map(function (x) { return '<span class="tag ' + (x.status === 'done' ? 'ok' : x.status === 'received' ? 'new' : 'off') + '" title="' + h(x.done_at ? 'Done ' + x.done_by_name + ' ' + dt(x.done_at) : x.recv_at ? 'Received ' + x.recv_by_name + ' ' + dt(x.recv_at) : 'Not opened yet') + '">' + h(x.store) + ': ' + (x.status === 'done' ? '✓ done' : x.status === 'received' ? 'received' : 'pending') + '</span> '; }).join('') +
+          '<br><span class="tiny muted">' + g.stores.filter(function (x) { return x.recv_at; }).map(function (x) { return h(x.store) + ': ' + h(x.recv_by_name) + ' ' + dt(x.recv_at) + (x.done_at ? ', done ' + h(x.done_by_name) + ' ' + dt(x.done_at) : ''); }).join(' · ') + '</span></span></li>';
+      }).join('') + '</ul></details>' : '');
+    all('#sfiles [name=sfk]').forEach(function (el) { el.onchange = function () { SF_KIND = el.value; storeFilesPane(box, openTasks); }; });
+    all('[data-sfo]').forEach(function (b) { b.onclick = function () { b.disabled = true; call('storeFile', { id: b.getAttribute('data-sfo') }).then(function (x) { b.disabled = false; if (x.error) return toast(x.error, 'err'); openDataFile(x.data, x.name); }).catch(function (e) { b.disabled = false; fail(e); }); }; });
+    all('[data-sfa]').forEach(function (b) { b.onclick = function () { b.disabled = true; call('ackStoreFile', { id: b.getAttribute('data-sfa'), status: b.getAttribute('data-st') }).then(function () { toast('Saved'); storeFilesPane(box, openTasks); }).catch(function (e) { b.disabled = false; fail(e); }); }; });
+    var f = $('sff'); if (!f) return;
+    var tsel = f.querySelector('[name=task_id]'); if (tsel) tsel.onchange = function () { $('sfst').style.display = tsel.value ? 'none' : ''; };
+    f.onsubmit = function (e) {
+      e.preventDefault(); var d = formData(f), file = $('sffile').files[0], btn = f.querySelector('button.primary');
+      if (!file) return toast('Pick a file', 'err'); if (file.size > r.maxMb * 1048576) return toast('File too big (max ' + r.maxMb + ' MB)', 'err');
+      if (!/\.(jpe?g|png|webp|heic|pdf|xlsx|xls|csv|docx)$/i.test(file.name)) return toast('Only photo, PDF, Excel or Word', 'err');
+      d.store_ids = act.length > 1 ? all('#sff [name=sf_store]').filter(function (c) { return c.checked; }).map(function (c) { return Number(c.value); }) : [(act[0] || {}).id];
+      if (!d.task_id && !d.store_ids.length) return toast('Pick at least one store / स्टोर चुनें', 'err');
+      delete d.sf_store; d.file_name = file.name; btn.disabled = true; btn.textContent = 'Sending…';
+      var rd = new FileReader(); rd.onerror = function () { btn.disabled = false; toast('Could not read the file', 'err'); };
+      rd.onload = function () { d.file = rd.result; call('sendStoreFile', d).then(function (x) { toast('Sent to ' + x.stores + ' store(s)'); storeFilesPane(box, openTasks); }).catch(function (e2) { btn.disabled = false; btn.textContent = 'Send / भेजें'; fail(e2); }); };
+      rd.readAsDataURL(file);
+    };
+  }).catch(function (e) { if (e && e.missing) box.innerHTML = '<p class="tiny muted">Store files: ' + h(e.message) + '</p>'; });
+}
+function openDataFile(dataUrl, name) {
+  var m = String(dataUrl).match(/^data:([^;]*);base64,(.*)$/); if (!m) return;
+  var bin = atob(m[2]), u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  var url = URL.createObjectURL(new Blob([u8], { type: m[1] || 'application/octet-stream' })), a = document.createElement('a');
+  a.href = url; a.download = name || 'file';
+  document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 60000);
+}
 
 // ---------- audit visit, photo review ----------
 on(/^\/audit$/, function () {
