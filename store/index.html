@@ -251,17 +251,19 @@ function api(action, data) {
     .then(function (s) { var r; try { r = JSON.parse(s); } catch (e) { throw new Error('Server not updated yet (bad response). Ask admin to redeploy.'); } return r; },
       function (e) { throw new Error(e && /Server/.test(e.message) ? e.message : 'Network problem. Check internet and try again.'); });
 }
+var NAV = 0, ROUTE_TAG = 0; // a screen only draws data for the navigation that asked for it (no late, stale screen over a newer one)
 function call(action, data) {
-  busy(1); window.__pending = (window.__pending || 0) + 1;
+  busy(1); window.__pending = (window.__pending || 0) + 1; var tag = ROUTE_TAG;
   function done() { busy(-1); window.__pending--; }
   return api(action, data).then(function (r) {
-    done();
+    done(); if (tag && tag !== NAV) { var st = new Error('stale'); st.stale = true; throw st; }
+    if (!r.ok && /^Unknown action/.test(r.error || '')) { var ua = new Error('This part needs the latest server update. Ask the admin to redeploy the Apps Script (new version).'); ua.missing = true; throw ua; }
     if (!r.ok) { if (r.auth === false && action !== 'login') signOutLocal(); throw new Error(r.error); }
     return r.data;
   }, function (e) { done(); throw e; });
 }
 function toast(msg, type) { var t = $('toast'); t.textContent = msg; t.className = 'toast ' + (type || 'ok'); clearTimeout(t._h); t._h = setTimeout(function () { t.className = 'toast hidden'; }, 3800); }
-function fail(e) { toast(e.message || String(e), 'err'); }
+function fail(e) { if (e && e.stale) return; toast(e.message || String(e), 'err'); }
 function signOutLocal() { S.token = null; S.user = null; store.removeItem('ims_token'); bridgeSave(null); go('/login'); }
 
 // ---------- routing ----------
@@ -280,8 +282,9 @@ function route() {
     var m = p.match(ROUTES[i].re);
     if (m) {
       if (ROUTES[i].perm && !can(ROUTES[i].perm)) { return go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); }
-      window.scrollTo(0, 0);
-      return Promise.resolve(ROUTES[i].fn.apply(null, m.slice(1).map(decodeURIComponent))).catch(fail);
+      window.scrollTo(0, 0); var my = ++NAV, res; ROUTE_TAG = my;
+      try { res = ROUTES[i].fn.apply(null, m.slice(1).map(decodeURIComponent)); } finally { ROUTE_TAG = 0; }
+      return Promise.resolve(res).catch(function (e) { if (e && e.stale) return; if (my === NAV && /Loading/.test($app.textContent) || (e && e.missing && my === NAV)) $app.innerHTML = '<div class="card center"><p>' + h(e.message || String(e)) + '</p><button class="sm" data-go="/">Home</button></div>'; fail(e); });
     }
   }
   $app.innerHTML = '<div class="card center"><h2>Not found</h2><a href="#" data-go="/">Home</a></div>';
@@ -448,7 +451,7 @@ on(/^\/quick$/, function () {
     can('petty') && t('/petty', '🧾', 'Petty expense', 'खर्चा'), can('cash') && t('/cash', '💵', 'Cash tally', 'कैश'), t('/tasks', '✅', 'Tasks', 'काम'), can('sales_manual') && t('/manual', '✍️', 'Manual sales', '')].filter(Boolean).join('') + '</div>';
 });
 on(/^\/more$/, function () {
-  var L = [['/help', '❓ Samjho / Help: what each number means'], ['/offers', '🏷️ Offers board', 'offers_read'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
+  var L = [['/gallery', '🗂️ Photos by date', 'checklist_view'], ['/help', '❓ Samjho / Help: what each number means'], ['/offers', '🏷️ Offers board', 'offers_read'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
     ['/ranking', '🏆 All-store ranking', 'ranking'], ['/team', '👥 Team attendance', 'team_attendance'], ['/cash', '💵 Cash tally', 'cash'], ['/cash-all', '💵 Cash tallies (all stores)', 'cash_view_all'], ['/petty', '🧾 Petty cash', 'petty'],
     ['/manual', '✍️ Manual sales (if Fusion import is late)', 'sales_manual'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'], ['/perf', '📊 Store performance', 'perf'], ['/categories', '🗂️ Category sales (group / sub group)', 'perf'], ['/dayclose', '🧮 Day close entry (walk-ins, footfall, lost customers)', 'perf_entry'], ['/training', '🎓 Training', 'training'], ['/training-team', '🎓 Team training progress', 'training_team'],
     ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
@@ -519,18 +522,37 @@ on(/^\/checklist\/(opening|closing)$/, function (kind) {
 
 // ---------- VM / POS photos ----------
 on(/^\/photos$/, function () {
-  CAM = {}; var sid = curStore();
-  return call('photosDay', { store_id: sid }).then(function (r) {
+  CAM = {}; var sid = curStore(), date = q('date') || S.today, past = date < S.today;
+  return call('photosDay', { store_id: sid, date: date }).then(function (r) {
     var sl = r.slots;
-    $app.innerHTML = '<h2>🖼️ ' + T('Daily VM / POS photos', 'डिस्प्ले फोटो') + '</h2><p class="muted small">' + h(r.store.name) + ' · ' + sl.done + ' of ' + sl.total + ' done. Owner and auditor check these.</p><div id="gps" class="small"></div>' +
+    $app.innerHTML = '<h2>🖼️ ' + T('Daily VM / POS photos', 'डिस्प्ले फोटो') + '</h2>' + dayBar(date, '/photos', sid) + '<p class="muted small">' + h(r.store.name) + ' · ' + dLabel(date) + ' · ' + sl.done + ' of ' + sl.total + ' done.' + (past ? ' Old day: view only.' : ' Owner and auditor check these.') + ' <a href="#" data-go="/gallery?date=' + date + '">All photos of the day</a></p><div id="gps" class="small"></div>' +
       ['vm', 'pos'].map(function (type) {
         return '<h4 class="sec">' + (type === 'vm' ? 'Visual merchandising' : 'POS counter') + '</h4>' + sl.list.filter(function (x) { return x.type === type; }).map(function (x) {
           var key = type + '_' + x.slot;
           return '<div class="card"><div class="row-between"><b>' + h(x.label) + '</b>' + (x.review === 'ok' ? '<span class="tag ok">Approved</span>' : x.review === 'redo' ? '<span class="tag off">Redo</span>' : x.photo_id ? '<span class="tag">Sent</span>' : '<span class="tag new">Pending</span>') + '</div>' +
-            (x.note ? '<p class="small low-t">' + h(x.note) + '</p>' : '') + (x.photo_id ? '<img id="p_' + key + '" class="thumb hidden">' : '') + (can('vm_photos') && (!x.photo_id || x.review === 'redo') ? '<div style="margin-top:8px">' + cam(key, type, x.photo_id ? 'Retake' : 'Take photo', { slot: x.slot }) + '</div>' : '') + '</div>';
+            (x.note ? '<p class="small low-t">' + h(x.note) + '</p>' : '') + (x.photo_id ? '<img id="p_' + key + '" class="thumb hidden">' : '') + (!past && can('vm_photos') && (!x.photo_id || x.review === 'redo') ? '<div style="margin-top:8px">' + cam(key, type, x.photo_id ? 'Retake' : 'Take photo', { slot: x.slot }) + '</div>' : '') + '</div>';
         }).join('');
       }).join('');
-    getGeo('gps'); sl.list.forEach(function (x) { if (x.photo_id) showPhoto(x.photo_id, 'p_' + x.type + '_' + x.slot); });
+    if (!past) getGeo('gps'); sl.list.forEach(function (x) { if (x.photo_id) showPhoto(x.photo_id, 'p_' + x.type + '_' + x.slot); }); dayBarWire('/photos', sid);
+  });
+}, 'checklist_view');
+/** Date picker with previous / next day buttons. */
+function dayBar(date, base, sid) { return '<div class="filters"><button class="sm" id="dprev">‹ Prev day</button><label>Date<input type="date" id="dpick" value="' + date + '" max="' + S.today + '"></label><button class="sm" id="dnext"' + (date >= S.today ? ' disabled' : '') + '>Next day ›</button></div>'; }
+function dayBarWire(base, extra) { var to = function (d) { var qs = location.hash.split('?')[1] || '', p = {}; qs.split('&').filter(Boolean).forEach(function (kv) { var a = kv.split('='); p[a[0]] = a[1]; }); p.date = d; go(base + '?' + Object.keys(p).map(function (k) { return k + '=' + p[k]; }).join('&')); };
+  var shift = function (n) { var a = $('dpick').value.split('-').map(Number), t = new Date(Date.UTC(a[0], a[1] - 1, a[2] + n)); return t.toISOString().slice(0, 10); };
+  if ($('dpick')) $('dpick').onchange = function () { if ($('dpick').value) to($('dpick').value > S.today ? S.today : $('dpick').value); };
+  if ($('dprev')) $('dprev').onclick = function () { to(shift(-1)); }; if ($('dnext')) $('dnext').onclick = function () { var n = shift(1); if (n <= S.today) to(n); }; }
+var PHOTO_TYPE = { vm: 'VM display', pos: 'POS counter', opening: 'Opening', closing: 'Closing', task: 'Task proof', selfie: 'Attendance selfie', deposit: 'Deposit slip', settlement: 'Card settlement', upi: 'UPI report', petty: 'Petty bill', audit: 'Audit' };
+on(/^\/gallery$/, function () {
+  var date = q('date') || S.today, sid = q('store') || '', type = q('type') || '';
+  return call('photoGallery', { date: date, store_id: sid, type: type }).then(function (r) {
+    $app.innerHTML = '<h2>🗂️ Photos by date</h2>' + dayBar(date) + '<div class="filters">' + (r.stores.length > 1 ? '<label>Store<select id="gst">' + opt([['', 'All my stores']].concat(r.stores.map(function (s) { return [s.id, s.name]; })), r.store_id) + '</select></label>' : '') +
+      '<label>Type<select id="gty">' + opt([['', 'All types']].concat(r.types.concat(type && r.types.indexOf(type) < 0 ? [type] : []).map(function (t) { return [t, PHOTO_TYPE[t] || t]; })), type) + '</select></label></div>' +
+      '<p class="small muted">' + dLabel(date) + ' · ' + r.rows.length + ' photo(s).' + (r.keepDays ? ' Photos older than ' + r.keepDays + ' days are deleted automatically (bills and deposit slips are kept).' : '') + '</p>' +
+      (r.rows.length ? '<div class="gallery" style="grid-template-columns:repeat(2,1fr)">' + r.rows.map(function (p) { return '<div class="card" style="padding:6px;margin:0"><img id="g' + p.id + '" style="height:140px" alt=""><p class="tiny" style="margin:4px 0 0"><b>' + h(PHOTO_TYPE[p.type] || p.type) + '</b>' + (p.slot && p.slot !== p.type ? ' · ' + h(String(p.slot).replace(/_/g, ' ')) : '') + '<br>' + h(p.store || '') + ' · ' + h(p.user_name || '') + ' · ' + timeOnly(p.taken_at) + (p.review && p.review !== 'pending' ? ' · ' + (p.review === 'ok' ? '✓ approved' : '↺ redo') : '') + '</p></div>'; }).join('') + '</div>' : '<div class="card">' + empty('No photos for this day') + '</div>');
+    r.rows.forEach(function (p) { showPhoto(p.id, 'g' + p.id); }); dayBarWire('/gallery');
+    var nav = function () { go('/gallery?date=' + date + ($('gst') && $('gst').value ? '&store=' + $('gst').value : '') + ($('gty').value ? '&type=' + $('gty').value : '')); };
+    if ($('gst')) $('gst').onchange = nav; $('gty').onchange = nav;
   });
 }, 'checklist_view');
 
@@ -802,7 +824,7 @@ on(/^\/audit\/view\/(\d+)$/, function (id) {
 on(/^\/review$/, function () {
   var allDay = q('all') === '1', date = q('date') || S.today;
   return call('reviewQueue', { all: allDay, date: date }).then(function (r) {
-    $app.innerHTML = '<h2>🖼️ Photo review</h2><div class="btnrow" style="margin-bottom:10px"><button class="' + (allDay ? '' : 'navy') + ' sm" data-go="/review">Pending</button><button class="' + (allDay ? 'navy' : '') + ' sm" data-go="/review?all=1&date=' + date + '">All of ' + dLabel(date) + '</button></div>' +
+    $app.innerHTML = '<h2>🖼️ Photo review</h2><p class="small"><a href="#" data-go="/gallery?date=' + date + '">🗂️ All photos by date, store and type</a></p><div class="btnrow" style="margin-bottom:10px"><button class="' + (allDay ? '' : 'navy') + ' sm" data-go="/review">Pending</button><button class="' + (allDay ? 'navy' : '') + ' sm" data-go="/review?all=1&date=' + date + '">All of ' + dLabel(date) + '</button></div>' +
       (r.rows.length ? r.rows.map(function (p) {
         return '<div class="card"><div class="row-between"><b>' + h(p.store) + ' · ' + h(p.slot.replace(/_/g, ' ')) + '</b><span class="tag ' + (p.review === 'ok' ? 'ok' : p.review === 'redo' ? 'off' : 'new') + '">' + h(p.review || p.type) + '</span></div><p class="tiny muted" style="margin:2px 0">' + h(p.user_name) + ' · ' + dt(p.taken_at) + (n(p.outside) ? ' · <span class="low-t">' + p.dist_m + ' m from store</span>' : '') + '</p><img id="rv' + p.id + '" class="thumb hidden">' +
           (p.review === 'pending' ? '<div class="btnrow mt"><button class="primary sm" data-ok="' + p.id + '">✓ Good</button><button class="danger sm" data-redo="' + p.id + '">Redo</button></div>' : '') + '</div>';
@@ -1130,6 +1152,9 @@ bridgeAsk().then(function (t) {
 });
 })();
 </script>
-<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');</script>
+<script>/* Service worker: check for a new version on every open / return to the app; when a new one takes over, reload once so old and new screens never mix. */
+if ('serviceWorker' in navigator) { var hadCtrl = !!navigator.serviceWorker.controller, reloaded = false;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) { reg.update(); document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update(); }); }).catch(function () {});
+  navigator.serviceWorker.addEventListener('controllerchange', function () { if (!hadCtrl || reloaded) return; reloaded = true; location.reload(); }); }</script>
 </body>
 </html>
