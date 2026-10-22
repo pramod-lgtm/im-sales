@@ -35,3 +35,6 @@ Apps Script already nests the app: `script.google.com` page → `sandboxFrame` (
 - **GPS**: works (verified in a 3-level local simulation using Google's exact allow/sandbox attributes; and without the wrapper's `allow`, GPS is blocked and the app's "Location note" fallback appears). The permission prompt names the wrapper's site.
 - **Photo**: `<input type=file capture>` opens the phone camera or gallery and doesn't need the camera permission, so it works. Live `getUserMedia` camera would NOT work (Google's frame doesn't delegate `camera`), but the app doesn't use it.
 - **Copy for WhatsApp**: `clipboard-write` is delegated. The "Send on WhatsApp" link works regardless.
+
+## 2026-10-22: Accompanied by (joint market visit)
+The Sales call card now has an optional "Saath mein company se kaun? / Accompanied by" field (company people + Other, multiple, None by default), saved in a new `accompanied_by` column on the Calls tab. It shows in My calls, call detail, admin day detail, and the admin Call log (column "With" + filter "Joint visits only / Alone only"), and in the CSV export. The change lives in the Apps Script (paste Code.gs + Index.html); this repo only gets a service worker cache bump.
