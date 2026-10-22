@@ -38,3 +38,6 @@ Apps Script already nests the app: `script.google.com` page → `sandboxFrame` (
 
 ## 2026-10-22: Accompanied by (joint market visit)
 The Sales call card now has an optional "Saath mein company se kaun? / Accompanied by" field (company people + Other, multiple, None by default), saved in a new `accompanied_by` column on the Calls tab. It shows in My calls, call detail, admin day detail, and the admin Call log (column "With" + filter "Joint visits only / Alone only"), and in the CSV export. The change lives in the Apps Script (paste Code.gs + Index.html); this repo only gets a service worker cache bump.
+
+## 2026-10-22: Company persons + Daywise Market Input
+"Accompanied by" now lists only company persons (CompanyPersons tab, seeded Usman, Sunil, Akshay, Gagan; admin edits the list on the Market input screen), plus Other. New "📝 Market input / Roz ka Market Input" form (top bar, any login): one entry per company person per date (today/yesterday; admin any past date), saved to the MarketInput tab. Admin → Market input: list, date/person filter, CSV. Change lives in the Apps Script paste files; this repo only gets a service worker cache bump.
