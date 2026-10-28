@@ -1,20 +1,24 @@
 {
-  "id": "./",
-  "name": "Intimissionline Sales",
-  "short_name": "IM Sales",
-  "description": "Intimissionline field sales: call cards, PJP and target vs achievement.",
-  "start_url": "./?source=pwa",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#7a1f4b",
-  "theme_color": "#7a1f4b",
-  "lang": "en-IN",
-  "categories": ["business", "productivity"],
-  "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+ "name": "IM Store",
+ "short_name": "IM Store",
+ "start_url": "/im-sales/store/?source=pwa",
+ "scope": "/im-sales/store/",
+ "display": "standalone",
+ "background_color": "#ffffff",
+ "theme_color": "#1a73e8",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any maskable"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any maskable"
+  }
+ ],
+ "id": "/im-sales/store/"
 }
