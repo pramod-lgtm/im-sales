@@ -234,6 +234,11 @@ function timeOnly(iso) { if (!iso) return ''; var p = istParts(iso), hh = p.h % 
 function dt(iso) { return iso ? dmy(istDate(iso)) + ', ' + timeOnly(iso) : ''; }
 var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 function dLabel(d) { if (!d) return ''; var a = String(d).split('-'); return Number(a[2]) + ' ' + MONTHS[Number(a[1]) - 1].slice(0, 3); }
+var WD3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** v26: 'Thu 12 Nov' from a yyyy-mm-dd date. */
+function dWd(d) { if (!d) return ''; var a = String(d).split('-').map(Number); return WD3[new Date(Date.UTC(a[0], a[1] - 1, a[2])).getUTCDay()] + ' ' + dLabel(d); }
+/** v26: '12:00' is shown as '12 noon'. */
+function cutLabel(c) { return !c || c === '12:00' ? '12 noon' : c; }
 function monthLabel(ym) { var a = ym.split('-'); return MONTHS[Number(a[1]) - 1] + ' ' + a[0]; }
 function inr(v) { v = Math.round(Number(v) || 0); var neg = v < 0, s = String(Math.abs(v)); if (s.length > 3) s = s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + s.slice(-3); return (neg ? '-' : '') + '₹' + s; }
 function pct(a, t) { t = Number(t) || 0; return t ? Math.round((Number(a) || 0) * 100 / t) : null; }
@@ -496,9 +501,10 @@ on(/^\/home$/, function () {
     if (can('attendance')) tiles.push(t('/attendance', '🤳', r.att ? (r.att.checked_out ? 'Day done' : 'Check out') : 'Check in', 'हाज़िरी', r.att && r.att.checked_out ? 'done' : (r.att ? '' : (r.attStatus === 'weekoff' ? '' : 'todo')), r.att ? (r.att.checked_out ? 'Checked in + out ✓' : 'Checked in ✓') : (r.attStatus === 'weekoff' ? 'Week off today' : 'Selfie + GPS')));
     if (can('checklist')) {
       tiles.push(t('/checklist/opening', '🔓', 'Opening', 'ओपनिंग', r.opening ? (n(r.opening.late) ? 'late' : 'done') : 'todo', r.opening ? timeOnly(r.opening.at) + (n(r.opening.late) ? ' LATE' : '') : 'Not done'));
-      tiles.push(t('/photos', '🖼️', 'VM / POS photos', 'डिस्प्ले फोटो', r.slots && r.slots.done >= r.slots.total ? 'done' : 'todo', r.slots ? r.slots.done + '/' + r.slots.total + (r.slots.redo ? ', ' + r.slots.redo + ' redo' : '') : ''));
-      tiles.push(t('/cash', '💵', 'Cash tally', 'कैश मिलान', r.recon ? 'done' : '', r.recon ? 'Diff ' + inr(r.recon.var_total) : 'At closing'));
-      tiles.push(t('/checklist/closing', '🔒', 'Closing', 'क्लोज़िंग', r.closing ? 'done' : '', r.closing ? timeOnly(r.closing.at) : 'At night'));
+      var vmOff = r.slots && r.slots.due === false; // v26: VM / POS photos are due on Thursday and Sunday only (server says so; an older server keeps the daily tile)
+      tiles.push(t('/photos', '🖼️', 'VM / POS photos', 'डिस्प्ले फोटो', vmOff ? '' : (r.slots && r.slots.done >= r.slots.total ? 'done' : 'todo'), r.slots ? (vmOff ? 'Not today · next ' + dWd(r.slots.next_due) : r.slots.done + '/' + r.slots.total + (r.slots.redo ? ', ' + r.slots.redo + ' redo' : '')) : ''));
+      tiles.push(t('/cash', '💵', 'Cash tally', 'कैश मिलान', r.recon ? 'done' : '', r.recon ? 'Diff ' + inr(r.recon.var_total) : 'Tonight or by 12 noon next day'));
+      tiles.push(t('/checklist/closing', '🔒', 'Closing', 'क्लोज़िंग', r.closing ? 'done' : '', r.closing ? timeOnly(r.closing.at) : 'Tonight or by 12 noon next day'));
       tiles.push(t('/petty', '🧾', 'Petty cash', 'खर्चा', '', 'Bal ' + inr(r.petty)));
     }
     if (r.dayclose && can('perf_entry')) tiles.unshift(t('/dayclose', '🧮', 'Day close entry', 'दिन की एंट्री', r.dayclose.done ? 'done' : 'todo', r.dayclose.done ? 'Done' : 'Before closing', r.dayclose.done ? '' : '!'));
@@ -515,6 +521,10 @@ on(/^\/home$/, function () {
         (p.jc.runRate ? '<p class="small" style="margin:0">Need <b>' + inr(p.jc.runRate) + '/day</b> to finish this JC</p>' : '') + '</div>' : '') + planCard(r.plan) +
       (r.storeMoney ? '<div class="card"><b>' + h(r.store.name) + ' (store)</b>' + barB('Store today', '', r.storePerf.today) + barB(r.storePerf.jc.name, '', r.storePerf.jc) + barB('Store month', '', r.storePerf.mtd) + '</div>' + planCard(r.storePlan, 'Store plan (Rs)') : (r.storePerf ? '<div class="card"><div class="row-between"><b>Store today</b><span class="pill ' + cls(r.storePerf.today.p) + '">' + (r.storePerf.today.p || 0) + '%</span></div><p class="small muted" style="margin:4px 0 0">' + h(r.storePerf.jc.name || 'JC') + ' ' + (r.storePerf.jc.p || 0) + '% · MTD ' + (r.storePerf.mtd.pExp || 0) + '% of target due till today</p></div>' : '')) +
       (r.weekoffPrompt ? '<a href="#" data-go="/weekoff" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🗓️ ' + T('Week off not set for this week', 'इस हफ्ते की छुट्टी सेट नहीं है') + '</b><br><span class="small muted">' + r.weekoffPrompt.missing + ' of ' + r.weekoffPrompt.total + ' people. Tap to set Monday-Sunday week off.</span></a>' : '') +
+      (r.prev ? '<div class="card hl"><b>⏰ ' + T('Yesterday (' + dLabel(r.prev.date) + ') still pending, send by ' + cutLabel(r.prev.cutoff) + ' today', 'कल का बाकी है, ' + cutLabel(r.prev.cutoff) + ' तक भेजें') + '</b><div class="btnrow" style="margin-top:8px">' +
+        (!r.prev.dayclose && can('perf_entry') ? '<button class="sm" data-go="/dayclose?date=' + r.prev.date + '">🧮 Day close entry</button>' : '') +
+        (!r.prev.closing && can('checklist') ? '<button class="sm" data-go="/checklist/closing?date=' + r.prev.date + '">🔒 Closing</button>' : '') +
+        (!r.prev.recon && can('cash') ? '<button class="sm" data-go="/cash?date=' + r.prev.date + '">💵 Cash tally</button>' : '') + '</div></div>' : '') +
       (r.dayclose && !r.dayclose.done && can('perf_entry') ? '<a href="#" data-go="/dayclose" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🧮 Day close entry pending</b><br><span class="small muted">' + (r.dayclose.footfall === false ? 'Footfall, lost customers and your walk-ins. ' : 'Your customers attended and converted. ') + 'Needed before the closing checklist.</span></a>' : '') +
       (r.training && r.training.done < r.training.total ? '<a href="#" data-go="/training" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>🎓 Training pending: ' + (r.training.total - r.training.done) + ' module(s)</b><br><span class="small muted">Finish your training (ट्रेनिंग पूरी करें). Tap to start.</span></a>' : '') +
       '<div id="board"></div>' +
@@ -790,14 +800,15 @@ on(/^\/checklist\/(opening|closing)$/, function (kind) {
   return call('checklist', { kind: kind, store_id: sid, date: date }).then(function (r) {
     var title = kind === 'opening' ? '🔓 ' + T('Opening checklist', 'ओपनिंग चेकलिस्ट') : '🔒 ' + T('Closing checklist', 'क्लोज़िंग चेकलिस्ट');
     if (r.run) {
-      $app.innerHTML = '<h2>' + title + '</h2><div class="card"><div class="row-between"><span>Done by <b>' + h(r.run.user_name) + '</b> at ' + timeOnly(r.run.submitted_at) + '</span><span class="pill ' + cls(r.run.score_pct) + '">' + r.run.score_pct + '%</span></div>' +
+      $app.innerHTML = '<h2>' + title + '</h2><div class="card"><div class="row-between"><span>Done by <b>' + h(r.run.user_name) + '</b> at ' + (r.run.next_day ? dt(r.run.submitted_at) + ' <span class="tag">next day</span>' : timeOnly(r.run.submitted_at)) + '</span><span class="pill ' + cls(r.run.score_pct) + '">' + r.run.score_pct + '%</span></div>' +
         (n(r.run.late_mins) ? '<p class="low-t">LATE by ' + r.run.late_mins + ' min (after ' + h(r.lateAfter) + ')</p>' : '') + (n(r.run.early_mins) ? '<p class="low-t">' + r.run.early_mins + ' min early</p>' : '') + (r.run.dist_m != null && r.run.dist_m !== '' ? '<p class="small muted">Submitted ' + r.run.dist_m + ' m from the store</p>' : '') + '</div>' +
         '<div class="card">' + (r.items || []).map(function (t) { var a = r.run.answers[t.id] || {}; return '<div class="chk"><span class="q">' + h(t.text) + '</span> <b class="' + (a.value === 'no' ? 'low' : 'good') + '">' + h(a.value) + '</b>' + (a.photo_id ? '<img id="ph' + t.id + '" class="thumb hidden">' : '') + '</div>'; }).join('') + '</div>';
       (r.items || []).forEach(function (t) { var a = r.run.answers[t.id] || {}; if (a.photo_id) showPhoto(a.photo_id, 'ph' + t.id); });
       return;
     }
-    if (!r.canSubmit) { $app.innerHTML = '<h2>' + title + '</h2><div class="card center">' + empty('Not submitted for ' + dLabel(date)) + '</div>'; return; }
-    $app.innerHTML = '<h2>' + title + '</h2><p class="muted small">' + h(r.store.name) + (r.lateAfter ? (kind === 'opening' ? ' · after ' + h(r.lateAfter) + ' counts as LATE' : ' · before ' + h(r.earlyBefore) + ' counts as early') : '') + '</p><div id="gps" class="small"></div>' +
+    var oldDay = kind === 'closing' && date < S.today; // v26: yesterday's closing, sent next morning before the cut-off
+    if (!r.canSubmit) { $app.innerHTML = '<h2>' + title + '</h2><div class="card center">' + empty(oldDay && r.cutoff ? 'Closing for ' + dLabel(date) + ' can be sent only until ' + cutLabel(r.cutoff) + ' the next morning. Not submitted.' : 'Not submitted for ' + dLabel(date)) + '</div>'; return; }
+    $app.innerHTML = '<h2>' + title + '</h2>' + (oldDay ? '<div class="card hl small"><b>Closing for ' + dLabel(date) + '</b> (yesterday). Counted to ' + dLabel(date) + '. Send before ' + cutLabel(r.cutoff) + '.</div>' : '') + '<p class="muted small">' + h(r.store.name) + (r.lateAfter && !oldDay ? (kind === 'opening' ? ' · after ' + h(r.lateAfter) + ' counts as LATE' : ' · before ' + h(r.earlyBefore) + ' counts as early') : '') + '</p><div id="gps" class="small"></div>' +
       '<form id="cf" class="card">' + (r.items || []).map(function (t) {
         return '<div class="chk"><span class="q">' + (n(t.critical) ? '❗ ' : '') + T(t.text, t.text_hi) + '</span>' + (t.type === 'number' ? '<input name="v' + t.id + '" inputmode="numeric" placeholder="Amount">' : t.type === 'text' ? '<input name="v' + t.id + '">' :
           '<div class="yn"><label><input type="radio" name="v' + t.id + '" value="yes"><span class="y">Yes</span></label><label><input type="radio" name="v' + t.id + '" value="no"><span class="n">No</span></label></div>') +
@@ -808,7 +819,7 @@ on(/^\/checklist\/(opening|closing)$/, function (kind) {
       e.preventDefault(); var d = formData(e.target), answers = {};
       (r.items || []).forEach(function (t) { answers[t.id] = { value: d['v' + t.id] || '', photo_id: CAM['i' + t.id] || '' }; });
       var b = e.target.querySelector('button.primary'); b.disabled = true;
-      call('submitChecklist', Object.assign({ kind: kind, answers: answers }, geoData())).then(function (x) { toast(kind === 'opening' ? 'Store opened' + (x.late ? ' (LATE ' + x.late + ' min)' : '') : 'Store closed. Good night!', x.late ? 'err' : 'ok'); if (x.failed) toast(x.failed + ' item(s) marked NO. Tasks created.', 'err'); go('/home'); })
+      call('submitChecklist', Object.assign({ kind: kind, answers: answers }, oldDay ? { date: date } : {}, geoData())).then(function (x) { toast(kind === 'opening' ? 'Store opened' + (x.late ? ' (LATE ' + x.late + ' min)' : '') : (oldDay ? 'Closing for ' + dLabel(date) + ' saved.' : 'Store closed. Good night!'), x.late ? 'err' : 'ok'); if (x.failed) toast(x.failed + ' item(s) marked NO. Tasks created.', 'err'); go('/home'); })
         .catch(function (err) { b.disabled = false; fail(err); });
     };
   });
@@ -818,16 +829,18 @@ on(/^\/checklist\/(opening|closing)$/, function (kind) {
 on(/^\/photos$/, function () {
   CAM = {}; var sid = curStore(), date = q('date') || S.today, past = date < S.today;
   return call('photosDay', { store_id: sid, date: date }).then(function (r) {
-    var sl = r.slots;
-    $app.innerHTML = '<h2>🖼️ ' + T('Daily VM / POS photos', 'डिस्प्ले फोटो') + '</h2>' + dayBar(date, '/photos', sid) + '<p class="muted small">' + h(r.store.name) + ' · ' + dLabel(date) + ' · ' + sl.done + ' of ' + sl.total + ' done.' + (past ? ' Old day: view only.' : ' Owner and auditor check these.') + ' <a href="#" data-go="/gallery?date=' + date + '">All photos of the day</a></p><div id="gps" class="small"></div>' +
+    var sl = r.slots, off = sl.due === false; // v26: required on Thursday and Sunday only; other days view only
+    $app.innerHTML = '<h2>🖼️ ' + T('VM / POS photos', 'डिस्प्ले फोटो') + (sl.days ? ' <small class="muted">· ' + h(sl.days) + '</small>' : '') + '</h2>' + dayBar(date, '/photos', sid) +
+      (off ? '<div class="card hl small"><b>' + T('Not a VM / POS photo day', 'आज फोटो ज़रूरी नहीं') + '</b><br>Photos are needed on ' + h(sl.days || 'Thursday and Sunday') + ' only. Next: <b>' + dWd(sl.next_due) + '</b>.' + (sl.last_due && sl.last_due !== date ? ' <a href="#" data-go="/photos?date=' + sl.last_due + '">See last photo day (' + dWd(sl.last_due) + ')</a>' : '') + '</div>' : '') +
+      '<p class="muted small">' + h(r.store.name) + ' · ' + dWd(date) + ' · ' + sl.done + ' of ' + sl.total + ' done.' + (past ? ' Old day: view only.' : off ? '' : ' Owner and auditor check these.') + ' <a href="#" data-go="/gallery?date=' + date + '">All photos of the day</a></p><div id="gps" class="small"></div>' +
       ['vm', 'pos'].map(function (type) {
         return '<h4 class="sec">' + (type === 'vm' ? 'Visual merchandising' : 'POS counter') + '</h4>' + sl.list.filter(function (x) { return x.type === type; }).map(function (x) {
           var key = type + '_' + x.slot;
           return '<div class="card"><div class="row-between"><b>' + h(x.label) + '</b>' + (x.review === 'ok' ? '<span class="tag ok">Approved</span>' : x.review === 'redo' ? '<span class="tag off">Redo</span>' : x.photo_id ? '<span class="tag">Sent</span>' : '<span class="tag new">Pending</span>') + '</div>' +
-            (x.note ? '<p class="small low-t">' + h(x.note) + '</p>' : '') + (x.photo_id ? '<img id="p_' + key + '" class="thumb hidden">' : '') + (!past && can('vm_photos') && (!x.photo_id || x.review === 'redo') ? '<div style="margin-top:8px">' + cam(key, type, x.photo_id ? 'Retake' : 'Take photo', { slot: x.slot }) + '</div>' : '') + '</div>';
+            (x.note ? '<p class="small low-t">' + h(x.note) + '</p>' : '') + (x.photo_id ? '<img id="p_' + key + '" class="thumb hidden">' : '') + (!past && !off && can('vm_photos') && (!x.photo_id || x.review === 'redo') ? '<div style="margin-top:8px">' + cam(key, type, x.photo_id ? 'Retake' : 'Take photo', { slot: x.slot }) + '</div>' : '') + '</div>';
         }).join('');
       }).join('');
-    if (!past) getGeo('gps'); sl.list.forEach(function (x) { if (x.photo_id) showPhoto(x.photo_id, 'p_' + x.type + '_' + x.slot); }); dayBarWire('/photos', sid);
+    if (!past && !off) getGeo('gps'); sl.list.forEach(function (x) { if (x.photo_id) showPhoto(x.photo_id, 'p_' + x.type + '_' + x.slot); }); dayBarWire('/photos', sid);
   });
 }, 'checklist_view');
 /** Date picker with previous / next day buttons. */
@@ -854,9 +867,12 @@ on(/^\/gallery$/, function () {
 on(/^\/cash$/, function () {
   CAM = {}; var sid = curStore(), date = q('date') || S.today;
   return call('recon', { store_id: sid, date: date }).then(function (r) {
-    var e = r.expected, x = r.existing, editable = can('cash') && (!x || x.status !== 'verified');
+    var e = r.expected, x = r.existing, editable = can('cash') && (!x || x.status !== 'verified') && r.canSubmit !== false, oldDay = date < S.today;
     var row = function (label, key, exp) { return '<tr><td>' + label + '</td><td class="r">' + inr(exp) + '</td><td class="r"><input name="act_' + key + '" inputmode="numeric" style="width:110px;text-align:right" value="' + (x ? x['act_' + key] : '') + '"' + (editable ? '' : ' disabled') + '></td><td class="r" id="v_' + key + '">' + (x ? inr(x['var_' + key]) : '') + '</td></tr>'; };
     $app.innerHTML = '<h2>💵 ' + T('Cash / card / UPI tally', 'कैश मिलान') + '</h2><div class="filters">' + storePicker('sp', sid) + '<label>Date<input type="date" id="dd" value="' + date + '"></label></div>' +
+      (oldDay && editable ? '<div class="card hl small"><b>Cash tally for ' + dLabel(date) + '</b> (yesterday). Counted to ' + dLabel(date) + '.' + (r.cutoff && !x ? ' Send before ' + cutLabel(r.cutoff) + '.' : '') + '</div>' : '') +
+      (oldDay && !editable && !(x && x.status === 'verified') && can('cash') && r.canSubmit === false ? '<div class="card small low-t">Cash tally for ' + dLabel(date) + ' can be sent only until ' + cutLabel(r.cutoff) + ' the next morning.</div>' : '') +
+      (!oldDay && r.windowOpen && r.yesterday && can('cash') ? '<p class="small"><a href="#" data-go="/cash?store=' + sid + '&date=' + r.yesterday + '">Yesterday\'s tally (till ' + cutLabel(r.cutoff) + ') ›</a></p>' : '') +
       '<p class="small muted">Expected = Fusion bills (' + (e.source || 'no sales imported yet') + '). Difference above ' + inr(r.tol) + ' needs a reason and goes to the owner.' + (e.online ? ' Online orders ' + inr(e.online) + ' are not in the till.' : e.onlineNote ? ' Online orders are not in the till.' : '') + '</p>' +
       (x ? '<div class="card ' + (x.status === 'verified' ? 'ok' : '') + '"><b>' + (x.status === 'verified' ? '✓ Verified by ' + h(x.verified_by) : 'Submitted by ' + h(x.user_name) + ' at ' + timeOnly(x.submitted_at)) + '</b>' + (x.verify_note ? '<p class="small">' + h(x.verify_note) + '</p>' : '') + '</div>' : '') +
       '<form id="rf" class="card"><table><tr><th></th><th class="r">Expected</th><th class="r">Actual</th><th class="r">Diff</th></tr>' + row('Cash (after float)', 'cash', e.cash) + row('Card (settlement)', 'card', e.card) + row('UPI / Paytm', 'upi', e.upi) + '</table>' +
@@ -1276,7 +1292,7 @@ on(/^\/dashboard$/, function () {
         return '<a href="#" data-go="/store-day?store=' + s.id + '&date=' + date + '" class="card storecard ' + (bad ? 'bad' : 'ok') + '" style="display:block;text-decoration:none;color:inherit"><div class="row-between"><b>' + (s.rank ? '#' + s.rank + ' ' : '') + h(s.name) + '</b><span class="pill ' + cls(p.today.p) + '">' + (p.today.p || 0) + '%</span></div>' +
           '<p class="small" style="margin:4px 0">Mgr ' + h(s.manager || '-') + ' · JC ' + (p.jc.p || 0) + '% · MTD ' + (p.mtd.pExp || 0) + '% of target due</p><div class="statusrow">' +
           '<span class="tag ' + (s.openedAt ? (s.lateOpen ? 'off' : 'ok') : 'off') + '">' + (s.openedAt ? (s.lateOpen ? 'Late ' : 'Open ') + timeOnly(s.openedAt) : 'Not opened') + '</span>' +
-          '<span class="tag ' + (s.present >= Math.min(2, s.staff) ? 'ok' : 'off') + '">👥 ' + s.present + '/' + s.staff + (s.off ? ' · ' + s.off + ' off' : '') + (s.outside ? ' (' + s.outside + ' far)' : '') + '</span><span class="tag ' + (s.photosMissing ? 'new' : 'ok') + '">🖼️ ' + (s.photosTotal - s.photosMissing) + '/' + s.photosTotal + '</span>' +
+          '<span class="tag ' + (s.present >= Math.min(2, s.staff) ? 'ok' : 'off') + '">👥 ' + s.present + '/' + s.staff + (s.off ? ' · ' + s.off + ' off' : '') + (s.outside ? ' (' + s.outside + ' far)' : '') + '</span><span class="tag ' + (s.photosMissing ? 'new' : 'ok') + '">🖼️ ' + (s.photosTotal - s.photosMissing) + '/' + s.photosTotal + (s.vmDue === false && s.vmDate ? ' · ' + dWd(s.vmDate) : '') + '</span>' +
           '<span class="tag ' + (s.recon ? (s.recon.any_over ? 'off' : 'ok') : '') + '">💵 ' + (s.recon ? (s.recon.today ? '' : dLabel(s.recon.date) + ' ') + inr(s.recon.var_total) : 'no tally') + '</span>' + (s.wow.length ? '<span class="tag ok">🎉 ' + s.wow.join(', ') + '</span>' : '') + (s.manualToday ? '<span class="tag new">manual sales</span>' : '') + '</div></a>';
       }).join('') +
       '<div class="card"><div class="sec-title"><h3>Alerts</h3></div><ul class="list">' + ((r.alerts || []).length ? (r.alerts || []).map(function (a) { return '<li><span class="small">' + h(a.message) + '<br><span class="tiny muted">' + dt(a.at) + '</span></span><button class="sm" data-seen="' + a.id + '">OK</button></li>'; }).join('') : empty('No open alerts')) + '</ul></div>' +
@@ -1296,11 +1312,11 @@ on(/^\/store-day$/, function () {
   var sid = curStore(), date = q('date') || S.today;
   return call('storeDetail', { store_id: sid, date: date }).then(function (s) {
     var item = {}; s.items.forEach(function (t) { item[t.id] = t; });
-    var run = function (r, label) { return '<div class="card"><h3>' + label + '</h3>' + (r ? '<p class="small">' + h(r.user_name) + ' at ' + timeOnly(r.submitted_at) + ' · ' + r.score_pct + '%' + (n(r.late_mins) ? ' · <span class="low-t">LATE ' + r.late_mins + ' min</span>' : '') + '</p><ul class="list">' + Object.keys(r.answers).map(function (k) { var a = r.answers[k]; return '<li><span class="small">' + h((item[k] || {}).text) + '</span><b class="' + (a.value === 'no' ? 'low' : 'good') + '">' + h(a.value) + (a.photo_id ? ' 📷' : '') + '</b></li>'; }).join('') + '</ul>' : empty('Not done')) + '</div>'; };
+    var run = function (r, label) { return '<div class="card"><h3>' + label + '</h3>' + (r ? '<p class="small">' + h(r.user_name) + ' at ' + (istDate(r.submitted_at) !== date ? dt(r.submitted_at) + ' (next day)' : timeOnly(r.submitted_at)) + ' · ' + r.score_pct + '%' + (n(r.late_mins) ? ' · <span class="low-t">LATE ' + r.late_mins + ' min</span>' : '') + '</p><ul class="list">' + Object.keys(r.answers).map(function (k) { var a = r.answers[k]; return '<li><span class="small">' + h((item[k] || {}).text) + '</span><b class="' + (a.value === 'no' ? 'low' : 'good') + '">' + h(a.value) + (a.photo_id ? ' 📷' : '') + '</b></li>'; }).join('') + '</ul>' : empty('Not done')) + '</div>'; };
     $app.innerHTML = '<a class="back" href="#" data-go="/dashboard?date=' + date + '">‹ Dashboard</a><h2>' + h(s.name) + ' · ' + dLabel(date) + '</h2>' +
       '<div class="card">' + barB('Today', s.perf.today.bills + ' bills', s.perf.today) + barB(s.perf.jc.name, '', s.perf.jc) + barB('Month', '', s.perf.mtd) + '<a href="#" data-go="/store-sales?store=' + s.id + '&date=' + date + '" class="small">Staff-wise sales ›</a></div>' +
       run(s.opening, '🔓 Opening') + '<div class="card"><h3>👥 Attendance</h3><ul class="list">' + (s.roster && s.roster.length ? s.roster.map(function (x) { var a = (s.att || []).filter(function (z) { return z.user_id === x.user_id; })[0]; return '<li><span>' + h(x.name) + '</span><span class="small">' + (x.status === 'weekoff' ? '<span class="tag">Week off</span>' + (x.in_at ? ' ' + timeOnly(x.in_at) : '') : x.status === 'present' ? '<span class="tag ok">Present</span> ' + timeOnly(x.in_at) + (a && n(a.late_mins) ? ' <span class="low-t">late ' + a.late_mins + 'm</span>' : '') + (a && a.in_status === 'outside' ? ' <span class="low-t">' + a.in_dist_m + ' m away</span>' : '') : '<span class="tag off">Absent</span>') + '</span></li>'; }).join('') : empty('Nobody checked in')) + '</ul></div>' +
-      '<div class="card"><h3>🖼️ VM / POS</h3><div class="gallery">' + s.slots.list.map(function (x) { return x.photo_id ? '<img id="g' + x.photo_id + '" alt="' + h(x.label) + '">' : '<div class="tiny muted" style="border:1px dashed #ddd;border-radius:8px;padding:8px;height:90px">' + h(x.label) + '<br>missing</div>'; }).join('') + '</div></div>' +
+      '<div class="card"><h3>🖼️ VM / POS' + (s.slotsDate && s.slotsDate !== date ? ' <small class="muted">· last photo day ' + dWd(s.slotsDate) + '</small>' : '') + '</h3><div class="gallery">' + s.slots.list.map(function (x) { return x.photo_id ? '<img id="g' + x.photo_id + '" alt="' + h(x.label) + '">' : '<div class="tiny muted" style="border:1px dashed #ddd;border-radius:8px;padding:8px;height:90px">' + h(x.label) + '<br>missing</div>'; }).join('') + '</div></div>' +
       '<div class="card"><h3>💵 Cash tally</h3>' + (s.reconRow ? '<p class="small">Cash ' + inr(s.reconRow.var_cash) + ' · Card ' + inr(s.reconRow.var_card) + ' · UPI ' + inr(s.reconRow.var_upi) + (s.reconRow.reason ? '<br>Reason: ' + h(s.reconRow.reason) : '') + '</p><a href="#" data-go="/cash?store=' + s.id + '&date=' + date + '" class="small">Open tally ›</a>' : empty('Not submitted')) + '<p class="small muted">Petty balance ' + inr(s.petty) + ' · cash to deposit ' + inr(s.cashPending.pending) + '</p></div>' +
       run(s.closing, '🔒 Closing') + '<div class="card small muted">Lost sales today: ' + s.lostRows.length + ' · open tasks: ' + s.openTasks + ' · untagged ' + (s.untagged.today.amount != null ? inr(s.untagged.today.amount) : s.untagged.today.bills + ' bills') + ' · online ' + (s.online.today.amount != null ? inr(s.online.today.amount) : s.online.today.n + ' orders') + '</div>';
     s.slots.list.forEach(function (x) { if (x.photo_id) showPhoto(x.photo_id, 'g' + x.photo_id); });
