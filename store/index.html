@@ -1181,7 +1181,7 @@ function offerFormHtml(o) {
     '<label>Brands<input name="brands" value="' + h(o.brands || '') + '"></label><label>Short summary (shown on the card)<input name="summary" maxlength="300" value="' + h(o.summary || '') + '"></label>' +
     '<label>Terms<textarea name="terms" rows="3">' + h(o.terms || '') + '</textarea></label><label>Fusion billing / scheme code<input name="billing_code" value="' + h(o.billing_code || '') + '"></label>' +
     '<div class="chk-group"><b class="small">Checklist for the store (Y / N)</b>' +
-    '<label class="chk"><input type="checkbox" name="is_active" value="1"' + chk('is_active', 1) + '> Is active: must show in the billing system</label>' +
+    '<label class="chk"><input type="checkbox" name="is_active" value="1"' + chk('is_active', 1) + '> Is active: stores see it and must show it in the billing system (untick = hidden from all stores)</label>' +
     '<label class="chk"><input type="checkbox" name="is_coupon_app" value="1"' + chk('is_coupon_app', 0) + '> Is coupon app</label>' +
     '<label class="chk"><input type="checkbox" name="tentcard" value="1"' + chk('tentcard', 0) + '> Tentcard</label>' +
     '<label class="chk"><input type="checkbox" name="display_space" value="1"' + chk('display_space', 0) + '> Display dedicated space (photo with hangtags)</label></div>';
@@ -1209,7 +1209,7 @@ function bindSheet(rows, id) {
   q.oninput = draw; draw();
 }
 function flagTags(o) {
-  return (Number(o.is_active) ? '<span class="tag ok">Billing</span> ' : '<span class="tag">Not in billing</span> ') + (Number(o.is_coupon_app) ? '<span class="tag new">Coupon app</span> ' : '') + (Number(o.tentcard) ? '<span class="tag new">Tentcard</span> ' : '') + (Number(o.display_space) ? '<span class="tag new">Display space</span> ' : '');
+  return (Number(o.is_active) === 0 && o.is_active !== '' ? '<span class="tag off">Not active: hidden from stores</span> ' : Number(o.is_active) ? '<span class="tag ok">Billing</span> ' : '') + (Number(o.is_coupon_app) ? '<span class="tag new">Coupon app</span> ' : '') + (Number(o.tentcard) ? '<span class="tag new">Tentcard</span> ' : '') + (Number(o.display_space) ? '<span class="tag new">Display space</span> ' : '');
 }
 function previewHtml(x) {
   var yn = function (v) { return v ? 'Y' : 'N'; }, act = { 'new': '<span class="tag ok">New</span>', update: '<span class="tag new">Update</span>', same: '<span class="tag">No change</span>' };
@@ -1234,7 +1234,7 @@ on(/^\/offers$/, function () {
       var prog = '';
       if (o.agg) prog = '<p class="small" style="margin:6px 0"><b>' + o.agg.done + ' of ' + o.agg.stores + '</b> stores complete' + (o.agg.overdue ? ' <span class="tag off">' + o.agg.overdue + ' overdue</span>' : '') + '</p>';
       else (o.mine || []).forEach(function (m) { prog += '<p class="small" style="margin:6px 0">' + ((o.mine || []).length > 1 ? '<b>' + h(m.name) + '</b><br>' : '') + (o.my_understood ? '' : '<span class="tag new">Tap Details to confirm you understood</span> ') + stepPills(m) + (m.overdue ? ' <span class="tag off">Overdue</span>' : '') + '</p>'; });
-      var todo = !o.my_understood && !o.agg;
+      var todo = !o.my_understood && !o.agg && !o.hidden;
       return '<div class="card ' + (todo || (o.agg && o.agg.done < o.agg.stores) ? 'hl' : '') + '"><div class="row-between"><b>' + h(o.title) + '</b>' + (o.live ? '<span class="tag ok">Live</span>' : '<span class="tag new">From ' + dLabel(o.start_date) + '</span>') + '</div>' +
         '<p class="small muted" style="margin:2px 0">' + (o.scheme_type ? h(o.scheme_type) + ' · ' : '') + dLabel(o.start_date) + ' to ' + dLabel(o.end_date) + (o.confirm_by ? ' · confirm by <b>' + dLabel(o.confirm_by) + '</b>' : '') + '</p>' +
         (o.summary ? '<p class="small" style="margin:4px 0">' + h(o.summary) + '</p>' : '') + '<p style="margin:4px 0">' + flagTags(o) + '</p>' + prog +
@@ -1249,7 +1249,7 @@ on(/^\/offers$/, function () {
       ((r.rows || []).length ? (r.rows || []).map(card).join('') : '<div class="card">' + empty('No live offers') + '</div>') +
       ((r.pricelists || []).length ? '<h4 class="sec">' + T('Pricelists', 'प्राइसलिस्ट') + '</h4><div class="card"><ul class="list">' + r.pricelists.map(function (p) { return '<li><a href="#" data-go="/pricelist?id=' + p.id + '"><b>' + h(p.name) + '</b><br><span class="tiny muted">' + h(p.store_label) + ' · ' + p.rows + ' rows</span></a><span class="muted">›</span></li>'; }).join('') + '</ul></div>' : '') +
       ((r.proposed || []).length ? '<h4 class="sec">Proposed offers</h4>' + (r.proposed || []).map(function (o) { return '<div class="card"><b>' + h(o.title) + '</b><p class="small">' + h(o.terms) + '</p>' + (can('offers_admin') ? '<button class="sm primary" data-ap="' + o.id + '">Approve</button> <button class="sm danger" data-rj="' + o.id + '">Reject</button>' : '<span class="tag new">Waiting for owner</span>') + '</div>'; }).join('') : '') +
-      ((r.posterTargets || []).length && can('offer_poster') ? '<details class="card"><summary>🖼️ ' + T('Upload offer poster', 'ऑफ़र पोस्टर अपलोड') + '</summary><form id="pf" class="stack mt"><label>Scheme<select name="offer_id">' + opt(r.posterTargets.map(function (t) { return [t.id, t.title + (t.status === 'draft' ? ' (draft)' : '') + ' · ' + t.posters + ' poster' + (t.posters === 1 ? '' : 's')]; })) + '</select></label>' +
+      ((r.posterTargets || []).length && can('offer_poster') ? '<details class="card"><summary>🖼️ ' + T('Upload offer poster', 'ऑफ़र पोस्टर अपलोड') + '</summary><form id="pf" class="stack mt"><label>Scheme<select name="offer_id">' + opt(r.posterTargets.map(function (t) { return [t.id, t.title + (t.status === 'draft' ? ' (draft)' : '') + (t.hidden ? ' (not active)' : '') + ' · ' + t.posters + ' poster' + (t.posters === 1 ? '' : 's')]; })) + '</select></label>' +
         '<label>Poster (PDF or JPG)<input type="file" name="pfile" accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg"></label><label>Title (optional)<input name="title" placeholder="e.g. Bra category"></label><button class="primary block">⬆ Upload poster</button></form></details>' : '') +
       (mayAdd ? '<details class="card" id="addoffer"><summary>＋ ' + (ho ? 'Add one scheme by hand' : 'Propose an offer') + '</summary><form id="of" class="stack mt">' + offerFormHtml(null) + cam('cr', 'offer', 'Offer creative (optional)') + '<button class="primary block">' + (ho ? 'Save and publish' : 'Send for approval') + '</button></form></details>' : '');
     (r.rows || []).forEach(function (o) { if (!o.loop && o.creative_photo_id) showPhoto(o.creative_photo_id, 'oc' + o.id); });
@@ -1316,10 +1316,10 @@ on(/^\/offer$/, function () {
                   '<button class="sm primary" data-dsp="' + m.store_id + '">' + (st.done ? 'Add these photos' : 'Save display photos') + '</button>' : '<p class="tiny muted">Tick "I understood" first.</p>') + '</div>';
             } else html += '<label class="chk"><input type="checkbox" data-st="' + k + '" data-store="' + m.store_id + '"' + (st.done ? ' checked disabled' : dis) + '> ' + T(OFFER_TICK_TEXT[k][0], OFFER_TICK_TEXT[k][1]) + '</label>' + (st.done ? by(st) : '');
           });
-          return html + '<p class="small" style="margin:10px 0 0">' + (m.done ? '<span class="tag ok">✓ All steps done for ' + h(m.name) + '</span>' : stepPills(m)) + '</p><p class="tiny muted">Understood by ' + s.understood.n + ' of ' + s.understood.total + (s.understood.names.length ? ': ' + h(s.understood.names.join(', ')) : '') + '</p>';
+          return html + '<p class="small" style="margin:10px 0 0">' + (m.done ? '<span class="tag ok">✓ All steps done for ' + h(m.name) + '</span>' : stepPills(m)) + '</p><p class="tiny muted">Understood by ' + s.understood.n + ' of ' + s.understood.total + (s.understood.names.length ? ': ' + h(s.understood.names.join(', ')) : '') + (s.understood.pending && s.understood.pending.length && !s.understood.done ? '. Waiting: ' + h(s.understood.pending.join(', ')) : '') + '</p>';
         }).join('') + '<p class="tiny muted">Ticks are saved with your name and time and cannot be undone. If HO changes this scheme, the ticks start again.</p></div>';
     }
-    var statusCard = '';
+    var statusCard = o.hidden && ho ? '<div class="card"><p class="small"><b>Hidden from stores</b> (Is Active = N). No store sees this scheme and no store steps are tracked. Tick Is active in Edit scheme to show it.</p></div>' : '';
     if (o.stores_status) statusCard = '<div class="card"><h4 style="margin:0 0 6px">📊 ' + T('Store status', 'स्टोर स्टेटस') + (o.agg ? ' · ' + o.agg.done + '/' + o.agg.stores + ' done' : '') + '</h4>' + statusTable(o.stores_status) + (o.rule === 'all' ? '<p class="tiny muted">Rule: every manager and staff must tick "understood".</p>' : '<p class="tiny muted">Rule: one person ticking "understood" is enough.</p>') + '</div>';
     var hist = '';
     if (o.history && o.history.length) hist = '<details class="card"><summary>🕘 ' + o.history.length + ' earlier confirmation(s), superseded by an edit</summary><ul class="list">' + o.history.map(function (c) { return '<li><span class="small">' + h(c.store || '') + ' · ' + h(OFFER_STEP_LABEL[c.step] ? OFFER_STEP_LABEL[c.step][0] : c.step) + ' · ' + h(c.user_name) + '<br><span class="tiny muted">ticked ' + dt(c.created_at) + ' · superseded ' + dt(c.superseded_at) + '</span></span></li>'; }).join('') + '</ul></details>';
@@ -1383,9 +1383,9 @@ function statusCell(s, extra) {
 }
 function statusTable(rows) {
   var cols = OFFER_STEP_ORDER.filter(function (k) { return k !== 'understood' && rows.some(function (m) { return m.steps[k].req; }); });
-  return '<div class="sheetwrap"><table class="tbl"><thead><tr><th>Store</th><th>Understood</th>' + cols.map(function (k) { return '<th>' + h(OFFER_STEP_LABEL[k][0]) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>' + rows.map(function (m) {
+  return '<div class="sheetwrap"><table class="tbl"><thead><tr><th>Store</th><th>Understood (n of N)</th>' + cols.map(function (k) { return '<th>' + h(OFFER_STEP_LABEL[k][0]) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>' + rows.map(function (m) {
     var s = m.steps;
-    return '<tr class="' + (m.overdue ? 'overdue' : '') + '"><td><b>' + h(m.name) + '</b></td><td>' + (s.understood.done ? '<span class="good-t">✓</span> ' : '<span class="low-t">⏳</span> ') + s.understood.n + '/' + s.understood.total + '</td>' + cols.map(function (k) {
+    return '<tr class="' + (m.overdue ? 'overdue' : '') + '"><td><b>' + h(m.name) + '</b></td><td>' + (s.understood.done ? '<span class="good-t">✓</span> ' : '<span class="low-t">⏳</span> ') + s.understood.n + ' of ' + s.understood.total + (!s.understood.done && s.understood.pending && s.understood.pending.length ? '<br><span class="tiny muted">waiting: ' + h(s.understood.pending.join(', ')) + '</span>' : '') + '</td>' + cols.map(function (k) {
       return '<td>' + (k === 'display' ? statusCell(s.display, ' ' + s.display.photos.length + '📷') + (s.display.photos.length ? '<br><button class="sm" data-vp="' + s.display.photos.join(',') + '">View</button><div class="photos"></div>' : '') : statusCell(s[k])) + '</td>';
     }).join('') + '<td>' + (m.done ? '<span class="tag ok">Done</span>' : (m.overdue ? '<span class="tag off">Overdue</span>' : '<span class="tag new">' + m.steps_done + '/' + m.steps_total + '</span>')) + '</td></tr>';
   }).join('') + '</tbody></table></div>';
