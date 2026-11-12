@@ -189,6 +189,11 @@ details.more>summary{cursor:pointer;font-weight:600;color:#7a3e9d;padding:6px 0}
 .attcal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.attcal .h{font-size:.7rem;color:var(--muted)}.attcal .c{border:1px solid #eee;border-radius:8px;min-height:44px;padding:3px 0;font-size:.78rem;background:#fff;cursor:pointer}.attcal .c b{display:block;font-weight:600;color:var(--muted)}.attcal .c i{font-style:normal;font-weight:800;font-size:.9rem}
 .attcal .c.P i{color:var(--good)}.attcal .c.A i,.attcal .c.rejected i{color:var(--low)}.attcal .c.WO,.attcal .c.CO{background:#f4f1f8}.attcal .c.HD,.attcal .c.pending{background:#fff1d6}.attcal .c.today{outline:2px solid var(--brand2)}
 input[type=checkbox]{width:auto}video.live{width:100%;border-radius:12px;background:#000;transform:scaleX(-1)}
+
+.chk{display:flex;align-items:flex-start;gap:8px;margin:8px 0;font-weight:500}.chk input{width:auto;margin-top:3px;flex:none}.chk.big{font-size:1.02rem;font-weight:600}.chk-group{margin-top:6px}
+.fslot{margin:6px 0}.flist{margin-top:4px}.frow{display:flex;flex-direction:column;gap:3px;margin:4px 0}.frow .ftitle{padding:6px 8px;font-size:.88rem}
+.sheetwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:6px}.sheettbl{border-collapse:collapse;font-size:.84rem;min-width:100%}.sheettbl th{position:sticky;top:0;background:#faf8fb;text-align:left;padding:6px 8px;border-bottom:2px solid var(--line);white-space:nowrap;font-size:.76rem;text-transform:none;color:var(--ink)}.sheettbl td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.photos{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}.photos .thumb{max-width:96px;max-height:96px;object-fit:cover}
 </style>
 </head>
 <body class="anon">
@@ -511,7 +516,7 @@ on(/^\/home$/, function () {
     if (can('perf')) { tiles.push(t('/yesterday', '📅', 'Yesterday', 'कल की रिपोर्ट', '', 'Report + last JC')); tiles.push(t('/perf', '📊', 'Performance', 'परफॉर्मेंस', '', 'Sales, target, growth')); tiles.push(t('/categories', '🗂️', 'Category sales', 'ग्रुप बिक्री', '', 'Group vs LM / LY')); tiles.push(t('/help', '❓', 'Samjho', 'समझो', '', 'What numbers mean')); }
     if (r.training && can('training')) tiles.push(t('/training', '🎓', 'Training', 'ट्रेनिंग', r.training.done >= r.training.total ? 'done' : 'todo', r.training.done + '/' + r.training.total + ' passed', r.training.done < r.training.total ? r.training.total - r.training.done : ''));
     tiles.push(t('/lost', '❌', 'Lost sale', 'छूटी बिक्री', '', 'Size / colour'));
-    tiles.push(t('/offers', '🏷️', 'Offers', 'ऑफ़र', r.offers ? 'todo' : '', r.offers ? r.offers + ' new' : 'All read', r.offers || ''));
+    tiles.push(r.offersTodo != null ? t('/offers', '🏷️', 'Offers', 'ऑफ़र', r.offersTodo ? 'todo' : '', r.offersTodo ? r.offersTodo + ' to confirm' : 'All done', r.offersTodo || '') : t('/offers', '🏷️', 'Offers', 'ऑफ़र', r.offers ? 'todo' : '', r.offers ? r.offers + ' new' : 'All read', r.offers || ''));
     tiles.push(t('/circulars', '📢', 'Circulars', 'सूचना', r.circulars ? 'todo' : '', r.circulars ? r.circulars + ' unread' : 'All read', r.circulars || ''));
     if (S.user.role === 'manager') { tiles.push(t('/team', '👥', 'Team', 'टीम', '', 'Present / Absent')); tiles.push(t('/store-sales', '📈', 'Store sales', '', '', 'Staff-wise')); }
     if (can('weekoff_view') && S.user.store_id) tiles.push(t('/weekoff', '🗓️', 'Week off', 'साप्ताहिक छुट्टी', r.weekoffPrompt ? 'todo' : '', r.weekoffPrompt ? 'Not set for this week' : (r.attStatus === 'weekoff' ? 'Today' : 'This week')));
@@ -539,7 +544,7 @@ on(/^\/quick$/, function () {
     can('petty') && t('/petty', '🧾', 'Petty expense', 'खर्चा'), can('cash') && t('/cash', '💵', 'Cash tally', 'कैश'), t('/tasks', '✅', 'Tasks', 'काम'), can('sales_manual') && t('/manual', '✍️', 'Manual bill', 'हाथ का बिल'), can('cust_history') && t('/customer', '🔎', 'Customer history', 'ग्राहक'), can('perf') && t('/yesterday', '📅', 'Yesterday report', 'कल की रिपोर्ट')].filter(Boolean).join('') + '</div>';
 });
 on(/^\/more$/, function () {
-  var L = [['/gallery', '🗂️ Photos by date', 'checklist_view'], ['/help', '❓ Samjho / Help: what each number means'], ['/offers', '🏷️ Offers board', 'offers_read'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
+  var L = [['/gallery', '🗂️ Photos by date', 'checklist_view'], ['/help', '❓ Samjho / Help: what each number means'], ['/offers', '🏷️ Offers board', 'offers_read'], ['/offers-status', '📊 Offer status by store', 'offer_status'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
     ['/ranking', '🏆 All-store ranking', 'ranking'], ['/team', '👥 Team attendance', 'team_attendance'], ['/att', '✅ Attendance: approvals, payroll, audit', 'attendance_admin_view'], ['/weekoff', '🗓️ Week off (Mon-Sun)', 'weekoff_view'], ['/cash', '💵 Cash tally', 'cash'], ['/cash-all', '💵 Cash tallies (all stores)', 'cash_view_all'], ['/petty', '🧾 Petty cash', 'petty'],
     ['/manual', '✍️ Manual bills (bill book) + Fusion match', 'sales_manual'], ['/customer', '🔎 Customer history (by mobile)', 'cust_history'], ['/yesterday', '📅 Yesterday report + last JC', 'perf'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'], ['/perf', '📊 Store performance', 'perf'], ['/categories', '🗂️ Category sales (group / sub group)', 'perf'], ['/dayclose', '🧮 Day close entry (walk-ins, footfall, lost customers)', 'perf_entry'], ['/training', '🎓 Training', 'training'], ['/training-team', '🎓 Team training progress', 'training_team'],
     ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
@@ -1064,26 +1069,341 @@ on(/^\/import$/, function () {
   });
 }, 'sales_import');
 
-// ---------- offers board, circulars ----------
+// ---------- circulars ----------
+// ---------- offers: board, detail page (sheet + collaterals + store steps), HO status, Excel / CSV reader ----------
+var OFFER_KIND_NAME = { excel: 'Excel (deadline sheets)', poster: 'Category posters', pdf: 'Offer PDF', hangtag: 'Product hangtags', standee: 'Digital standee creative' };
+var OFFER_KIND_ONE = { excel: 'Excel', poster: 'Poster', pdf: 'PDF', hangtag: 'Hangtag', standee: 'Standee' };
+var OFFER_KIND_ACCEPT = { excel: '.xlsx,.xls,.csv', poster: 'image/*,.pdf', pdf: '.pdf', hangtag: 'image/*,.pdf', standee: 'image/*,.pdf,.mp4' };
+var OFFER_STEP_LABEL = { understood: ['Understood', 'समझ गया'], system: ['In billing system', 'सिस्टम में'], download: ['Poster / PDF downloaded', 'डाउनलोड'], display: ['Display photo', 'डिस्प्ले फोटो'], digital: ['Digital standee', 'डिजिटल स्टैंडी'] };
+var OFFER_STEP_ORDER = ['understood', 'system', 'download', 'display', 'digital'];
+function bytesLabel(n) { n = Number(n) || 0; return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+
+// --- Excel (.xlsx) and CSV are read in the browser; the server only keeps the cleaned text of each sheet ---
+var XL_LIMIT = { rows: 400, cols: 40 };
+function xlColNum(ref) { var m = String(ref).match(/^([A-Z]+)/); if (!m) return 0; var n = 0; for (var i = 0; i < m[1].length; i++) n = n * 26 + (m[1].charCodeAt(i) - 64); return n - 1; }
+function xlInflate(u8) {
+  if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('This phone browser cannot open Excel files. Use Chrome, or upload the sheet as CSV.'));
+  var ds = new DecompressionStream('deflate-raw');
+  return new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+}
+function xlZip(buf) {
+  var u8 = new Uint8Array(buf), dv = new DataView(buf), i = u8.length - 22, ents = {};
+  while (i >= 0 && dv.getUint32(i, true) !== 0x06054b50) i--;
+  if (i < 0) throw new Error('This is not an .xlsx file. In Excel use Save As > Excel Workbook (.xlsx).');
+  var n = dv.getUint16(i + 10, true), off = dv.getUint32(i + 16, true), dec = new TextDecoder();
+  for (var k = 0; k < n; k++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    var nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true);
+    ents[dec.decode(u8.subarray(off + 46, off + 46 + nl))] = { method: dv.getUint16(off + 10, true), size: dv.getUint32(off + 20, true), lh: dv.getUint32(off + 42, true) };
+    off += 46 + nl + el + cl;
+  }
+  return { u8: u8, dv: dv, ents: ents, text: function (name) {
+    var e = ents[name]; if (!e) return Promise.resolve(null);
+    var s = e.lh + 30 + dv.getUint16(e.lh + 26, true) + dv.getUint16(e.lh + 28, true), data = u8.subarray(s, s + e.size);
+    return (e.method === 0 ? Promise.resolve(data) : xlInflate(data)).then(function (b) { return new TextDecoder().decode(b); });
+  } };
+}
+function xlXml(s) { var d = new DOMParser().parseFromString(s, 'application/xml'); if (d.getElementsByTagName('parsererror').length) throw new Error('The Excel file is damaged.'); return d; }
+function xlIsDateFmt(id, code) {
+  if (id === 9 || id === 10 || (code && /%/.test(String(code).replace(/"[^"]*"/g, '')))) return 'p';
+  if ([14, 15, 16, 17, 22].indexOf(id) >= 0 || (id >= 27 && id <= 36) || (id >= 50 && id <= 58)) return 'd';
+  if (id >= 18 && id <= 21 || id >= 45 && id <= 47) return 't';
+  if (!code) return '';
+  var c = String(code).replace(/"[^"]*"/g, '').replace(/\[[^\]]*\]/g, '').replace(/\\./g, '');
+  return /[dy]/i.test(c) ? 'd' : (/[hs]/i.test(c) ? 't' : '');
+}
+function xlDate(v, kind) {
+  var ms = Math.round(Number(v) * 86400000) + Date.UTC(1899, 11, 30), d = new Date(ms), p = function (n) { return (n < 10 ? '0' : '') + n; };
+  var day = p(d.getUTCDate()) + '-' + MONTHS[d.getUTCMonth()].slice(0, 3) + '-' + d.getUTCFullYear(), tm = p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+  return kind === 't' ? tm : (Number(v) % 1 ? day + ' ' + tm : day);
+}
+function xlNum(t) { var n = Number(t); return isNaN(n) ? t : String(parseFloat(n.toPrecision(12))); }
+function readXlsx(buf) {
+  var z = xlZip(buf), wb, rels, shared = [], dateXf = [];
+  return Promise.all([z.text('xl/workbook.xml'), z.text('xl/_rels/workbook.xml.rels'), z.text('xl/sharedStrings.xml'), z.text('xl/styles.xml')]).then(function (t) {
+    if (!t[0]) throw new Error('This is not an Excel workbook (.xlsx).');
+    wb = xlXml(t[0]); rels = {}; Array.prototype.forEach.call(xlXml(t[1] || '<r/>').getElementsByTagName('Relationship'), function (r) { rels[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    if (t[2]) Array.prototype.forEach.call(xlXml(t[2]).getElementsByTagName('si'), function (si) { var s = ''; Array.prototype.forEach.call(si.getElementsByTagName('t'), function (x) { if (!x.parentNode || x.parentNode.nodeName !== 'rPh') s += x.textContent; }); shared.push(s); });
+    if (t[3]) { var st = xlXml(t[3]), codes = {}; Array.prototype.forEach.call(st.getElementsByTagName('numFmt'), function (n) { codes[n.getAttribute('numFmtId')] = n.getAttribute('formatCode'); });
+      var cx = st.getElementsByTagName('cellXfs')[0]; if (cx) Array.prototype.forEach.call(cx.getElementsByTagName('xf'), function (x) { var id = Number(x.getAttribute('numFmtId')) || 0; dateXf.push(xlIsDateFmt(id, codes[id])); }); }
+    var sheets = Array.prototype.filter.call(wb.getElementsByTagName('sheet'), function (s) { return !/hidden/i.test(s.getAttribute('state') || ''); });
+    return sheets.reduce(function (p, s) {
+      return p.then(function (out) {
+        var tg = rels[s.getAttribute('r:id')] || ''; tg = tg.charAt(0) === '/' ? tg.slice(1) : 'xl/' + tg;
+        return z.text(tg).then(function (xml) {
+          if (!xml) return out; var rows = [];
+          Array.prototype.forEach.call(xlXml(xml).getElementsByTagName('c'), function (c) {
+            var ref = c.getAttribute('r'), ci = xlColNum(ref), ri = Number((String(ref).match(/(\d+)$/) || [])[1]) - 1, ty = c.getAttribute('t'), vEl = c.getElementsByTagName('v')[0], val = vEl ? vEl.textContent : '';
+            if (isNaN(ri) || ri >= XL_LIMIT.rows || ci >= XL_LIMIT.cols) return;
+            if (ty === 's') val = shared[Number(val)] || ''; else if (ty === 'inlineStr') { val = ''; Array.prototype.forEach.call(c.getElementsByTagName('t'), function (x) { val += x.textContent; }); }
+            else if (ty === 'b') val = val === '1' ? 'Yes' : 'No'; else if (ty === 'str' || ty === 'e') val = val || '';
+            else if (val !== '') { var k = dateXf[Number(c.getAttribute('s')) || 0]; val = k === 'p' ? xlNum(Number(val) * 100) + '%' : (k ? xlDate(val, k) : xlNum(val)); }
+            (rows[ri] = rows[ri] || [])[ci] = String(val).trim();
+          });
+          rows = Array.prototype.map.call(rows, function (r) { r = r || []; var a = []; for (var j = 0; j < r.length; j++) a.push(r[j] == null ? '' : r[j]); return a; });
+          for (var i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+          while (rows.length && rows[rows.length - 1].every(function (c) { return c === ''; })) rows.pop();
+          if (rows.length) out.push({ name: s.getAttribute('name') || 'Sheet', rows: rows });
+          return out;
+        });
+      });
+    }, Promise.resolve([]));
+  });
+}
+function readCsv(text, name) {
+  text = text.replace(/^\uFEFF/, ''); var first = text.split(/\r?\n/)[0] || '', delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',', rows = [], row = [], cell = '', q = false;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text.charAt(i);
+    if (q) { if (ch === '"') { if (text.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true; else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text.charAt(i + 1) === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  rows = rows.slice(0, XL_LIMIT.rows).map(function (r) { return r.slice(0, XL_LIMIT.cols).map(function (c) { return c.trim(); }); });
+  while (rows.length && rows[rows.length - 1].every(function (c) { return c === ''; })) rows.pop();
+  return rows.length ? [{ name: String(name || 'Sheet').replace(/\.[^.]+$/, '').slice(0, 60), rows: rows }] : [];
+}
+function readSheetFile(file) {
+  if (/\.xls$/i.test(file.name)) return Promise.reject(new Error('Old .xls cannot be shown as a page. In Excel use Save As > Excel Workbook (.xlsx).'));
+  if (/\.csv$/i.test(file.name)) return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(readCsv(String(r.result), file.name)); }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsText(file); });
+  return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { try { readXlsx(r.result).then(res, rej); } catch (e) { rej(e); } }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsArrayBuffer(file); });
+}
+
+// --- file slots (HO): pick files per type, give each a title (category name for posters), upload one by one ---
+function fileSlotsHtml(id, kinds) {
+  return kinds.map(function (k) {
+    return '<div class="fslot" data-kind="' + k + '"><label>' + h(OFFER_KIND_NAME[k]) + '<input type="file" ' + (k === 'poster' || k === 'hangtag' || k === 'standee' ? 'multiple ' : '') + 'accept="' + OFFER_KIND_ACCEPT[k] + '" data-slot="' + id + '"></label><div class="flist" id="fl_' + id + '_' + k + '"></div></div>';
+  }).join('');
+}
+function bindFileSlots(root) {
+  all('#' + root + ' input[data-slot]').forEach(function (inp) {
+    inp.onchange = function () {
+      var k = inp.parentNode.parentNode.getAttribute('data-kind'), box = $('fl_' + inp.getAttribute('data-slot') + '_' + k);
+      box.innerHTML = Array.prototype.map.call(inp.files, function (f, i) {
+        return '<div class="frow"><span class="tiny muted">' + h(f.name) + ' · ' + bytesLabel(f.size) + '</span>' + (k === 'excel' || k === 'pdf' ? '' : '<input class="ftitle" data-i="' + i + '" value="' + h(f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ')) + '" placeholder="' + (k === 'poster' ? 'Category name' : 'Title') + '">') + '</div>';
+      }).join('');
+    };
+  });
+}
+function collectSlots(root) {
+  var list = [];
+  all('#' + root + ' .fslot').forEach(function (s) {
+    var k = s.getAttribute('data-kind'), inp = s.querySelector('input[type=file]'), titles = s.querySelectorAll('.ftitle');
+    Array.prototype.forEach.call(inp.files, function (f, i) { list.push({ kind: k, file: f, title: titles[i] ? titles[i].value : '' }); });
+  });
+  return list;
+}
+function readDataUrl(file) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { rej(new Error('Could not read ' + file.name)); }; r.readAsDataURL(file); }); }
+/** Uploads one by one. Resolves with the list of problems (empty = all good). */
+function uploadOfferFiles(offerId, list, btn, maxMb) {
+  var problems = [], n = 0;
+  return list.reduce(function (p, it) {
+    return p.then(function () {
+      n++; btn.textContent = 'Uploading ' + n + ' of ' + list.length + '…';
+      if (it.file.size > maxMb * 1048576) { problems.push(it.file.name + ': too big (max ' + maxMb + ' MB)'); return; }
+      var sheetP = it.kind === 'excel' ? readSheetFile(it.file).then(function (s) { return JSON.stringify(s); }, function (e) { problems.push(it.file.name + ': ' + e.message + (/\.xls$/i.test(it.file.name) ? '' : ' (file saved, but stores will not get the sheet page)')); return /\.xls$/i.test(it.file.name) ? null : ''; }) : Promise.resolve('');
+      return sheetP.then(function (sj) {
+        if (sj === null) return;
+        return readDataUrl(it.file).then(function (data) { return call('addOfferFile', { offer_id: offerId, kind: it.kind, title: it.title, file_name: it.file.name, file: data, sheet_json: sj || '' }); })
+          .catch(function (e) { problems.push(it.file.name + ': ' + (e.message || e)); });
+      });
+    });
+  }, Promise.resolve()).then(function () { return problems; });
+}
+function offerFormHtml(o, forEdit) {
+  o = o || {}; var ho = can('offers_admin'), chk = function (n, d) { var v = o[n] === '' || o[n] == null ? d : Number(o[n]); return v ? ' checked' : ''; };
+  return '<label>Title<input name="title" required value="' + h(o.title || '') + '"></label><label>Brands<input name="brands" value="' + h(o.brands || '') + '"></label>' +
+    '<div class="grid2"><label>Start<input type="date" name="start_date" value="' + h(o.start_date || S.today) + '"></label><label>End<input type="date" name="end_date" value="' + h(o.end_date || '') + '"></label></div>' +
+    (ho ? '<label>Stores<select name="stores">' + opt([['ALL', 'All stores']].concat(S.stores.map(function (s) { return [String(s.id), s.name]; })), o.stores || 'ALL') + '</select></label>' +
+      '<label>Stores must finish all steps by<input type="date" name="confirm_by" value="' + h(o.confirm_by || '') + '"></label>' : '') +
+    '<label>Short summary (shown on the card)<input name="summary" maxlength="300" value="' + h(o.summary || '') + '" placeholder="e.g. Buy 2 bras, get 1 panty free"></label>' +
+    '<label>Terms<textarea name="terms" rows="3">' + h(o.terms || '') + '</textarea></label><label>Fusion billing / scheme code<input name="billing_code" value="' + h(o.billing_code || '') + '"></label>' +
+    '<div class="chk-group"><b class="small">Stores must confirm</b>' +
+    '<label class="chk"><input type="checkbox" name="need_system" value="1"' + chk('need_system', 1) + '> Offer is showing in the billing system</label>' +
+    '<label class="chk"><input type="checkbox" name="need_display" value="1"' + chk('need_display', 1) + '> Display photo with hangtags</label>' +
+    '<label class="chk"><input type="checkbox" name="need_digital" value="1"' + chk('need_digital', 1) + '> Digital standee updated</label></div>';
+}
+function offerFormData(form) {
+  var d = formData(form); ['need_system', 'need_display', 'need_digital'].forEach(function (k) { d[k] = form.elements[k] && form.elements[k].checked ? 1 : 0; }); return d;
+}
+function stepPills(m) {
+  return OFFER_STEP_ORDER.filter(function (k) { return m.steps[k].req; }).map(function (k) { var s = m.steps[k]; return '<span class="tag ' + (s.done ? 'ok' : (m.overdue ? 'off' : 'new')) + '">' + (s.done ? '✓ ' : '') + h(OFFER_STEP_LABEL[k][0]) + '</span>'; }).join(' ');
+}
+function sheetTable(rows) {
+  if (!rows || !rows.length) return '';
+  var w = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 0), head = rows[0], body = rows.slice(1), cell = function (r, j) { return h(r[j] == null ? '' : r[j]); };
+  var th = ''; for (var j = 0; j < w; j++) th += '<th>' + cell(head, j) + '</th>';
+  return '<div class="sheetwrap"><table class="sheettbl"><thead><tr>' + th + '</tr></thead><tbody>' + body.map(function (r) { var td = ''; for (var j = 0; j < w; j++) td += '<td>' + cell(r, j) + '</td>'; return '<tr>' + td + '</tr>'; }).join('') + '</tbody></table></div>';
+}
+
 on(/^\/offers$/, function () {
   CAM = {};
   return call('offers').then(function (r) {
-    var mayAdd = can('offers_admin') || can('offers_propose');
-    $app.innerHTML = '<h2>🏷️ ' + T('Offers board', 'ऑफ़र') + '</h2>' + ((r.rows || []).length ? (r.rows || []).map(function (o) {
-      var rd = (r.reads || []).filter(function (x) { return Number(x.offer_id) === Number(o.id); });
-      return '<div class="card ' + (o.read ? '' : 'hl') + '"><div class="row-between"><b>' + h(o.title) + '</b>' + (o.live ? '<span class="tag ok">Live</span>' : '<span class="tag new">From ' + dLabel(o.start_date) + '</span>') + '</div><p class="small muted" style="margin:2px 0">' + h(o.brands) + ' · till ' + dLabel(o.end_date) + (o.billing_code ? ' · Fusion code <b>' + h(o.billing_code) + '</b>' : '') + '</p>' +
-        (o.creative_photo_id ? '<img id="oc' + o.id + '" class="thumb hidden">' : '') + '<p class="pre small">' + h(o.terms) + '</p>' + (o.read ? '<span class="small good-t">✓ Read</span>' : '<button class="primary sm" data-rd="' + o.id + '">I have read this</button>') + (r.reads ? '<p class="tiny muted">Read by ' + rd.length + (rd.length ? ': ' + h(rd.map(function (x) { return x.name; }).join(', ')) : '') + '</p>' : '') + '</div>';
-    }).join('') : '<div class="card">' + empty('No live offers') + '</div>') +
+    var ho = can('offers_admin'), mayAdd = ho || can('offers_propose'), v2 = !!r.v2;
+    var card = function (o) {
+      if (!o.loop) { // published before the Offers loop update: old card
+        var rd = (r.reads || []).filter(function (x) { return Number(x.offer_id) === Number(o.id); });
+        return '<div class="card ' + (o.read ? '' : 'hl') + '"><div class="row-between"><b>' + h(o.title) + '</b>' + (o.live ? '<span class="tag ok">Live</span>' : '<span class="tag new">From ' + dLabel(o.start_date) + '</span>') + '</div><p class="small muted" style="margin:2px 0">' + h(o.brands) + ' · till ' + dLabel(o.end_date) + (o.billing_code ? ' · Fusion code <b>' + h(o.billing_code) + '</b>' : '') + '</p>' +
+          (o.creative_photo_id ? '<img id="oc' + o.id + '" class="thumb hidden">' : '') + '<p class="pre small">' + h(o.terms) + '</p>' + (o.read ? '<span class="small good-t">✓ Read</span>' : '<button class="primary sm" data-rd="' + o.id + '">I have read this</button>') + (r.reads ? '<p class="tiny muted">Read by ' + rd.length + (rd.length ? ': ' + h(rd.map(function (x) { return x.name; }).join(', ')) : '') + '</p>' : '') + '</div>';
+      }
+      var prog = '';
+      if (o.agg) prog = '<p class="small" style="margin:6px 0"><b>' + o.agg.done + ' of ' + o.agg.stores + '</b> stores complete' + (o.agg.overdue ? ' <span class="tag off">' + o.agg.overdue + ' overdue</span>' : '') + '</p>';
+      else (o.mine || []).forEach(function (m) { prog += '<p class="small" style="margin:6px 0">' + ((o.mine || []).length > 1 ? '<b>' + h(m.name) + '</b><br>' : '') + (o.my_understood ? '' : '<span class="tag new">Tap Details to confirm you understood</span> ') + stepPills(m) + (m.overdue ? ' <span class="tag off">Overdue</span>' : '') + '</p>'; });
+      var todo = !o.my_understood && !o.agg;
+      return '<div class="card ' + (todo || (o.agg && o.agg.done < o.agg.stores) ? 'hl' : '') + '"><div class="row-between"><b>' + h(o.title) + '</b>' + (o.live ? '<span class="tag ok">Live</span>' : '<span class="tag new">From ' + dLabel(o.start_date) + '</span>') + '</div>' +
+        '<p class="small muted" style="margin:2px 0">' + h(o.brands) + ' · till ' + dLabel(o.end_date) + (o.confirm_by ? ' · confirm by <b>' + dLabel(o.confirm_by) + '</b>' : '') + '</p>' +
+        '<p class="small" style="margin:4px 0">' + h(o.summary || String(o.terms || '').slice(0, 140)) + '</p>' + prog +
+        '<div class="row-between"><span class="tiny muted">' + (o.files.length ? '📎 ' + o.files.length + ' files' : '') + (o.has_sheet ? ' · 📄 ' + o.sheet_tabs.length + ' sheet' + (o.sheet_tabs.length > 1 ? 's' : '') : '') + '</span><button class="primary sm" data-go="/offer?id=' + o.id + '">ⓘ ' + T('Details', 'विवरण') + '</button></div></div>';
+    };
+    $app.innerHTML = '<div class="row-between"><h2>🏷️ ' + T('Offers board', 'ऑफ़र') + '</h2>' + (can('offer_status') ? '<button class="sm" data-go="/offers-status">📊 ' + T('Store status', 'स्टोर स्टेटस') + '</button>' : '') + '</div>' +
+      ((r.drafts || []).length ? '<h4 class="sec">Drafts (stores cannot see these)</h4>' + r.drafts.map(function (o) { return '<div class="card"><div class="row-between"><b>' + h(o.title) + '</b><span class="tag new">Draft</span></div><p class="tiny muted">' + o.files.length + ' files · ' + (o.has_sheet ? 'sheet added' : 'no Excel yet') + '</p><button class="sm primary" data-go="/offer?id=' + o.id + '">Open, add files, publish</button></div>'; }).join('') : '') +
+      ((r.rows || []).length ? (r.rows || []).map(card).join('') : '<div class="card">' + empty('No live offers') + '</div>') +
       ((r.proposed || []).length ? '<h4 class="sec">Proposed offers</h4>' + (r.proposed || []).map(function (o) { return '<div class="card"><b>' + h(o.title) + '</b><p class="small">' + h(o.terms) + '</p>' + (can('offers_admin') ? '<button class="sm primary" data-ap="' + o.id + '">Approve</button> <button class="sm danger" data-rj="' + o.id + '">Reject</button>' : '<span class="tag new">Waiting for owner</span>') + '</div>'; }).join('') : '') +
-      (mayAdd ? '<details class="card"><summary>＋ ' + (can('offers_admin') ? 'Add offer' : 'Propose an offer') + '</summary><form id="of" class="stack mt"><label>Title<input name="title" required></label><label>Brands<input name="brands"></label><div class="grid2"><label>Start<input type="date" name="start_date" value="' + S.today + '"></label><label>End<input type="date" name="end_date"></label></div>' +
-        (can('offers_admin') ? '<label>Stores (blank = all)<select name="stores">' + opt([['ALL', 'All stores']].concat(S.stores.map(function (s) { return [String(s.id), s.name]; })), 'ALL') + '</select></label>' : '') + '<label>Terms<textarea name="terms" rows="3"></textarea></label><label>Fusion billing / scheme code<input name="billing_code"></label>' + cam('cr', 'offer', 'Offer creative (optional)') + '<button class="primary block">Save</button></form></details>' : '');
-    (r.rows || []).forEach(function (o) { if (o.creative_photo_id) showPhoto(o.creative_photo_id, 'oc' + o.id); });
+      (mayAdd ? '<details class="card" id="addoffer"><summary>＋ ' + (ho ? 'Add offer' : 'Propose an offer') + '</summary><form id="of" class="stack mt">' + offerFormHtml(null) + cam('cr', 'offer', 'Offer creative (optional)') +
+        (ho && v2 ? '<h4 class="sec">Files for the stores (you can also add them later)</h4><div id="ofs">' + fileSlotsHtml('new', ['excel', 'poster', 'pdf', 'hangtag', 'standee']) + '</div><p class="tiny muted">Excel: one sheet per tab is shown to stores as a page (up to ' + XL_LIMIT.rows + ' rows). Posters: give each its category name. Max ' + (r.maxMb || 10) + ' MB per file.</p>' +
+          '<label class="chk"><input type="checkbox" id="ofdraft"> Save as draft (do not show to stores yet)</label>' : '') + '<button class="primary block">' + (ho ? 'Save and publish' : 'Send for approval') + '</button></form></details>' : '');
+    (r.rows || []).forEach(function (o) { if (!o.loop && o.creative_photo_id) showPhoto(o.creative_photo_id, 'oc' + o.id); });
     all('[data-rd]').forEach(function (b) { b.onclick = function () { call('readOffer', { id: b.getAttribute('data-rd') }).then(function () { route(); }).catch(fail); }; });
     all('[data-ap]').forEach(function (b) { b.onclick = function () { call('approveOffer', { id: b.getAttribute('data-ap') }).then(function () { toast('Approved'); route(); }).catch(fail); }; });
     all('[data-rj]').forEach(function (b) { b.onclick = function () { call('approveOffer', { id: b.getAttribute('data-rj'), ok: false }).then(function () { route(); }).catch(fail); }; });
-    if ($('of')) $('of').onsubmit = function (e) { e.preventDefault(); var d = formData(e.target); d.creative_photo_id = CAM.cr || ''; call('saveOffer', d).then(function () { toast('Offer saved'); route(); }).catch(fail); };
+    if ($('ofs')) bindFileSlots('ofs');
+    if ($('of')) $('of').onsubmit = function (e) {
+      e.preventDefault(); var d = offerFormData(e.target), btn = e.target.querySelector('button.primary'), list = ho && v2 ? collectSlots('ofs') : [], draft = $('ofdraft') && $('ofdraft').checked;
+      d.creative_photo_id = CAM.cr || ''; if (ho && v2) d.draft = 1; btn.disabled = true; btn.textContent = 'Saving…';
+      call('saveOffer', d).then(function (x) {
+        if (!(ho && v2)) { toast('Offer saved'); return route(); }
+        return uploadOfferFiles(x.id, list, btn, r.maxMb || 10).then(function (problems) {
+          if (problems.length) { toast('Saved as draft. Some files need attention.', 'err'); alert('Offer saved as a DRAFT (stores cannot see it yet).\n\n' + problems.join('\n') + '\n\nOpen the draft to add the missing files, then publish.'); return go('/offer?id=' + x.id); }
+          if (draft) { toast('Draft saved'); return go('/offer?id=' + x.id); }
+          return call('publishOffer', { id: x.id }).then(function () { toast('Offer published to stores'); go('/offer?id=' + x.id); });
+        });
+      }).catch(function (er) { btn.disabled = false; btn.textContent = ho ? 'Save and publish' : 'Send for approval'; fail(er); });
+    };
   });
 }, 'offers_read');
+
+on(/^\/offer$/, function () {
+  CAM = {}; var id = q('id');
+  return call('offerDetail', { id: id }).then(function (o) {
+    var ho = can('offers_admin'), store = !!(o.mine && o.mine.length) && !o.agg, tabSel = Number(q('tab')) || 0, sheets = o.sheets || [], files = o.files || [];
+    var by = function (s) { return s && s.by ? '<span class="tiny muted">' + h(s.by) + ', ' + dt(s.at) + '</span>' : ''; };
+    var head = '<div class="row-between"><h2>' + h(o.title) + '</h2><button class="sm" data-go="/offers">← Offers</button></div>' +
+      '<div class="card"><div class="row-between"><span>' + (o.status === 'draft' ? '<span class="tag new">Draft</span>' : (o.live ? '<span class="tag ok">Live</span>' : '<span class="tag new">From ' + dLabel(o.start_date) + '</span>')) + '</span><span class="small muted">' + dLabel(o.start_date) + ' to ' + dLabel(o.end_date) + '</span></div>' +
+      '<p class="small muted" style="margin:6px 0">' + h(o.brands) + (o.billing_code ? ' · Fusion code <b>' + h(o.billing_code) + '</b>' : '') + (o.confirm_by ? ' · all steps by <b>' + dLabel(o.confirm_by) + '</b>' : '') + '</p>' +
+      (o.summary ? '<p><b>' + h(o.summary) + '</b></p>' : '') + (o.terms ? '<p class="pre small">' + h(o.terms) + '</p>' : '') + (o.creative_photo_id ? '<img id="octr" class="thumb hidden">' : '') + '</div>';
+    var sheetCard = '';
+    if (sheets.length) {
+      if (tabSel >= sheets.length) tabSel = 0;
+      sheetCard = '<div class="card"><h4 style="margin:0 0 6px">📄 ' + T('Offer sheet', 'ऑफ़र शीट') + '</h4>' + (sheets.length > 1 ? '<div class="chips" id="shtabs">' + sheets.map(function (s, i) { return '<label><input type="radio" name="shtab" value="' + i + '"' + (i === tabSel ? ' checked' : '') + '><span>' + h(s.name) + '</span></label>'; }).join('') + '</div>' : '<p class="small muted">' + h(sheets[0].name) + '</p>') + '<div id="shbody">' + sheetTable(sheets[tabSel].rows) + '</div></div>';
+    } else if (o.loop) sheetCard = '<div class="card"><p class="small muted">No offer sheet attached' + (ho ? '. Add the Excel below.' : '.') + '</p></div>';
+    var kinds = ['poster', 'pdf', 'hangtag', 'standee', 'excel'], coll = kinds.map(function (k) {
+      var fl = files.filter(function (f) { return f.kind === k; }); if (!fl.length) return '';
+      return '<h5 class="sec" style="margin:8px 0 2px">' + h(OFFER_KIND_NAME[k]) + '</h5><ul class="list">' + fl.map(function (f) { return '<li><span>' + h(f.title) + '<br><span class="tiny muted">' + h(f.file_name) + ' · ' + bytesLabel(f.bytes) + '</span></span><span><button class="sm primary" data-dl="' + f.id + '">⬇ Download</button>' + (ho ? ' <button class="sm danger" data-rmf="' + f.id + '">✕</button>' : '') + '</span></li>'; }).join('') + '</ul>';
+    }).join('');
+    var collCard = coll ? '<div class="card"><h4 style="margin:0">📎 ' + T('Posters and files', 'पोस्टर और फाइलें') + '</h4>' + coll + '</div>' : (o.loop ? '<div class="card"><p class="small muted">No posters or files attached yet.</p></div>' : '');
+    var stepsCard = '';
+    if (store && o.loop && o.status === 'approved') {
+      var role = S.user.role, canStore = can('offer_store');
+      stepsCard = '<div class="card"><h4 style="margin:0 0 6px">✅ ' + T('Confirm for your store', 'अपने स्टोर के लिए कन्फर्म करें') + '</h4>' +
+        '<label class="chk big"><input type="checkbox" data-st="understood"' + (o.my_understood ? ' checked disabled' : '') + '> ' + T('I understood this offer', 'मैंने ऑफ़र समझ लिया') + '</label>' +
+        o.mine.map(function (m) {
+          var s = m.steps, multi = o.mine.length > 1, hd = multi ? '<h5 class="sec" style="margin:10px 0 2px">' + h(m.name) + '</h5>' : '';
+          if (!canStore) return hd + '<p class="tiny muted">Understood by ' + s.understood.n + ' of ' + s.understood.total + '. The store steps are done by the manager or staff.</p>';
+          var dis = o.my_understood ? '' : ' disabled';
+          var sys = s.system.req ? '<label class="chk"><input type="checkbox" data-st="system" data-store="' + m.store_id + '"' + (s.system.done ? ' checked disabled' : dis) + '> ' + T('Offer is showing in the billing system', 'ऑफ़र बिलिंग सिस्टम में दिख रहा है') + '</label>' + (s.system.done ? by(s.system) : '') : '';
+          var dl = s.download.req ? '<p class="small" style="margin:8px 0 2px">' + (s.download.done ? '<span class="good-t">✓ Poster / PDF downloaded</span> ' + by(s.download) : '⬇ Download the poster / PDF above (this step ticks by itself)') + '</p>' : '';
+          var disp = '';
+          if (s.display.req) {
+            disp = '<div style="margin-top:8px"><b class="small">📷 ' + T('Display photo with hangtags', 'हैंगटैग के साथ डिस्प्ले की फोटो') + '</b>' + (s.display.done ? ' <span class="good-t small">✓ ' + s.display.photos.length + ' photo' + (s.display.photos.length > 1 ? 's' : '') + '</span> ' + by(s.display) : '') +
+              '<div class="photos">' + s.display.photos.map(function (p) { return '<img class="thumb hidden" id="dp' + m.store_id + '_' + p + '">'; }).join('') + '</div>' +
+              (o.my_understood ? cam('od1_' + m.store_id, 'offer_display', 'Display / window', { slot: 'offer' + o.id, store: m.store_id }) + cam('od2_' + m.store_id, 'offer_display', 'Hangtag close-up', { slot: 'offer' + o.id + 'ht', store: m.store_id }) + cam('od3_' + m.store_id, 'offer_display', 'Another photo (optional)', { slot: 'offer' + o.id + 'x', store: m.store_id }) +
+                '<button class="sm primary" data-dsp="' + m.store_id + '">' + (s.display.done ? 'Add these photos' : 'Save display photos') + '</button>' : '<p class="tiny muted">Tick "I understood" first.</p>') + '</div>';
+          }
+          var dg = s.digital.req ? '<label class="chk" style="margin-top:8px"><input type="checkbox" data-st="digital" data-store="' + m.store_id + '"' + (s.digital.done ? ' checked disabled' : dis) + '> ' + T('Digital display (standee) updated, offer is showing', 'डिजिटल डिस्प्ले पर ऑफ़र दिख रहा है') + '</label>' + (s.digital.done ? by(s.digital) : '') : '';
+          return hd + sys + dl + disp + dg + '<p class="small" style="margin:10px 0 0">' + (m.done ? '<span class="tag ok">✓ All steps done for ' + h(m.name) + '</span>' : stepPills(m)) + '</p><p class="tiny muted">Understood by ' + s.understood.n + ' of ' + s.understood.total + (s.understood.names.length ? ': ' + h(s.understood.names.join(', ')) : '') + '</p>';
+        }).join('') + '<p class="tiny muted">Ticks are saved with your name and time and cannot be undone.</p></div>';
+    }
+    var statusCard = '';
+    if (o.stores_status) statusCard = '<div class="card"><h4 style="margin:0 0 6px">📊 ' + T('Store status', 'स्टोर स्टेटस') + (o.agg ? ' · ' + o.agg.done + '/' + o.agg.stores + ' done' : '') + '</h4>' + statusTable(o.stores_status) + '</div>';
+    var admin = '';
+    if (ho) admin = '<details class="card"' + (o.status === 'draft' ? ' open' : '') + '><summary>⚙️ ' + T('HO: add files, edit, publish', 'HO: फाइल जोड़ें, एडिट, पब्लिश') + '</summary>' +
+      '<form id="addf" class="stack mt"><div id="afs">' + fileSlotsHtml('add', ['excel', 'poster', 'pdf', 'hangtag', 'standee']) + '</div><button class="primary block">⬆ Upload selected files</button></form>' +
+      '<form id="edf" class="stack mt"><h5 class="sec" style="margin:8px 0 0">Edit details</h5>' + offerFormHtml(o, true) + '<button class="block">Save changes</button></form>' +
+      (o.status === 'draft' ? '<button class="primary block mt" id="pub">🚀 Publish to stores</button>' : '') + '</details>';
+    $app.innerHTML = head + (o.status === 'draft' ? '<div class="flash err">Draft: stores cannot see this offer yet.</div>' : '') + stepsCard + sheetCard + collCard + statusCard + admin;
+    if (o.creative_photo_id) showPhoto(o.creative_photo_id, 'octr');
+    (o.mine || []).forEach(function (m) { m.steps.display.photos.forEach(function (p) { showPhoto(p, 'dp' + m.store_id + '_' + p); }); });
+    bindViewPhotos();
+    all('#shtabs input').forEach(function (r) { r.onchange = function () { $('shbody').innerHTML = sheetTable(sheets[Number(r.value)].rows); }; });
+    all('[data-dl]').forEach(function (b) { b.onclick = function () { b.disabled = true; call('offerFile', { id: b.getAttribute('data-dl') }).then(function (x) { b.disabled = false; if (x.error) return toast(x.error, 'err'); openDataFile(x.data, x.name); if (store) setTimeout(route, 400); }).catch(function (e) { b.disabled = false; fail(e); }); }; });
+    all('[data-rmf]').forEach(function (b) { b.onclick = function () { if (confirm('Remove this file from the offer?')) call('removeOfferFile', { id: b.getAttribute('data-rmf') }).then(function () { route(); }).catch(fail); }; });
+    all('[data-st]').forEach(function (c) {
+      c.onchange = function () {
+        var st = c.getAttribute('data-st'), msg = st === 'system' ? 'Confirm: this offer is showing in the billing system?' : (st === 'digital' ? 'Confirm: the offer is showing on the digital standee?' : '');
+        if (!c.checked) return; if (msg && !confirm(msg)) { c.checked = false; return; }
+        c.disabled = true; call(st === 'understood' ? 'offerUnderstood' : 'offerConfirm', { id: o.id, step: st, store_id: c.getAttribute('data-store') || '' }).then(function () { toast('Saved'); route(); }).catch(function (e) { c.checked = false; c.disabled = false; fail(e); });
+      };
+    });
+    all('[data-dsp]').forEach(function (b) {
+      b.onclick = function () {
+        var sid = b.getAttribute('data-dsp'), ids = ['od1_', 'od2_', 'od3_'].map(function (k) { return CAM[k + sid]; }).filter(Boolean);
+        if (!ids.length) return toast('Take at least one photo of the display', 'err');
+        b.disabled = true; call('offerDisplay', { id: o.id, store_id: sid, photo_ids: ids }).then(function () { toast('Display photos saved'); route(); }).catch(function (e) { b.disabled = false; fail(e); });
+      };
+    });
+    if (ho) {
+      bindFileSlots('afs');
+      $('addf').onsubmit = function (e) {
+        e.preventDefault(); var btn = e.target.querySelector('button.primary'), list = collectSlots('afs'); if (!list.length) return toast('Pick at least one file', 'err');
+        btn.disabled = true; uploadOfferFiles(o.id, list, btn, o.maxMb || 10).then(function (p) { if (p.length) alert(p.join('\n')); toast(p.length ? 'Some files need attention' : 'Files uploaded', p.length ? 'err' : 'ok'); route(); }).catch(function (er) { btn.disabled = false; fail(er); });
+      };
+      $('edf').onsubmit = function (e) { e.preventDefault(); var d = offerFormData(e.target); d.id = o.id; call('editOffer', d).then(function () { toast('Saved'); route(); }).catch(fail); };
+      if ($('pub')) $('pub').onclick = function () { if (confirm('Publish this offer to the stores now?')) call('publishOffer', { id: o.id }).then(function () { toast('Published'); route(); }).catch(fail); };
+    }
+  });
+}, 'offers_read');
+
+var VP_N = 0;
+function bindViewPhotos() {
+  all('[data-vp]').forEach(function (b) {
+    b.onclick = function () {
+      var box = b.nextElementSibling, ids = b.getAttribute('data-vp').split(','); b.remove();
+      box.innerHTML = ids.map(function (p) { VP_N++; return '<img class="thumb hidden" id="vp' + VP_N + '" data-p="' + p + '">'; }).join('');
+      Array.prototype.forEach.call(box.querySelectorAll('img'), function (im) { showPhoto(Number(im.getAttribute('data-p')), im.id); });
+    };
+  });
+}
+function statusCell(s, extra) {
+  if (!s.req) return '<span class="muted">n/a</span>';
+  return s.done ? '<span class="good-t" title="' + h((s.by || '') + (s.at ? ' ' + dt(s.at) : '')) + '">✓</span>' + (extra || '') + (s.by ? '<br><span class="tiny muted">' + h(s.by) + '</span>' : '') : '<span class="low-t">⏳</span>';
+}
+function statusTable(rows) {
+  return '<div class="sheetwrap"><table class="tbl"><thead><tr><th>Store</th><th>Understood</th><th>Billing</th><th>Poster</th><th>Display</th><th>Digital</th><th></th></tr></thead><tbody>' + rows.map(function (m) {
+    var s = m.steps;
+    return '<tr class="' + (m.overdue ? 'overdue' : '') + '"><td><b>' + h(m.name) + '</b></td><td>' + (s.understood.done ? '<span class="good-t">✓</span> ' : '<span class="low-t">⏳</span> ') + s.understood.n + '/' + s.understood.total + '</td><td>' + statusCell(s.system) + '</td><td>' + statusCell(s.download) + '</td>' +
+      '<td>' + statusCell(s.display, ' ' + s.display.photos.length + '📷') + (s.display.photos.length ? '<br><button class="sm" data-vp="' + s.display.photos.join(',') + '">View</button><div class="photos"></div>' : '') + '</td><td>' + statusCell(s.digital) + '</td>' +
+      '<td>' + (m.done ? '<span class="tag ok">Done</span>' : (m.overdue ? '<span class="tag off">Overdue</span>' : '<span class="tag new">' + m.steps_done + '/' + m.steps_total + '</span>')) + '</td></tr>';
+  }).join('') + '</tbody></table></div>';
+}
+on(/^\/offers-status$/, function () {
+  return call('offerStatus', {}).then(function (r) {
+    var csv = function () {
+      var L = [['Offer', 'Store', 'Understood', 'Team', 'Billing system', 'Poster/PDF downloaded', 'Display photos', 'Digital standee', 'Status', 'Confirm by'].join(',')];
+      r.offers.forEach(function (o) { o.stores.forEach(function (m) { var s = m.steps, f = function (x) { return !x.req ? 'n/a' : (x.done ? 'Yes ' + (x.by || '') + ' ' + (x.at ? dt(x.at) : '') : 'Pending'); };
+        L.push([o.title, m.name, s.understood.n, s.understood.total, f(s.system), f(s.download), s.display.req ? (s.display.done ? s.display.photos.length : 'Pending') : 'n/a', f(s.digital), m.done ? 'Done' : (m.overdue ? 'Overdue' : 'Pending'), o.confirm_by || ''].map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',')); }); });
+      download('offers-status-' + r.date + '.csv', L.join('\n'));
+    };
+    $app.innerHTML = '<div class="row-between"><h2>📊 ' + T('Offer status by store', 'ऑफ़र स्टेटस') + '</h2><button class="sm" data-go="/offers">← Offers</button></div>' +
+      (r.offers.length ? '<button class="sm" id="stcsv">⬇ Download CSV</button>' : '') + (r.offers.length ? r.offers.map(function (o) {
+        return '<div class="card"><div class="row-between"><b>' + h(o.title) + '</b><span class="tag ' + (o.done === o.stores.length ? 'ok' : (o.overdue ? 'off' : 'new')) + '">' + o.done + '/' + o.stores.length + ' stores</span></div><p class="small muted" style="margin:2px 0 8px">' + dLabel(o.start_date) + ' to ' + dLabel(o.end_date) + (o.confirm_by ? ' · confirm by ' + dLabel(o.confirm_by) : '') + (o.ended ? ' · ended' : '') +
+          ' · <a href="#" data-go="/offer?id=' + o.id + '">Open offer</a></p>' + statusTable(o.stores) + '</div>';
+      }).join('') : '<div class="card">' + empty('No published offers in the last 2 weeks') + '</div>');
+    bindViewPhotos();
+    if ($('stcsv')) $('stcsv').onclick = csv;
+  });
+}, 'offer_status');
+
 on(/^\/circulars$/, function () {
   return call('circulars').then(function (r) {
     $app.innerHTML = '<h2>📢 ' + T('Circulars', 'सूचना') + '</h2>' + ((r.rows || []).length ? (r.rows || []).map(function (c) {
