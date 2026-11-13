@@ -1706,17 +1706,28 @@ function boardCard(b) {
 }
 // ---------- store performance ----------
 on(/^\/dayclose$/, function () {
-  var date = q('date') || S.today;
-  return call('dayCloseForm', { date: date }).then(function (r) {
+  var req = q('date') || '';
+  return call('dayCloseForm', req ? { date: req } : {}).then(function (r) {
     var lost = (r.lost || []).slice(), staffOpt = function (sel) { return '<option value="">Staff</option>' + (r.team || []).map(function (u) { return '<option value="' + u.id + '"' + (Number(sel) === u.id ? ' selected' : '') + '>' + h(u.name) + '</option>'; }).join(''); };
     var lostRows = function () { return lost.map(function (x, i) { return '<div class="grid2 mt" data-l="' + i + '"><select data-k="reason">' + (r.reasons || []).map(function (o) { return '<option' + (o === x.reason ? ' selected' : '') + '>' + h(o) + '</option>'; }).join('') + '</select><select data-k="staff_id">' + staffOpt(x.staff_id) + '</select><input data-k="note" placeholder="Note' + (x.reason === 'Other' ? ' (required)' : ' (optional)') + '" value="' + h(x.note || '') + '"><button type="button" class="sm danger" data-del="' + i + '">Remove</button></div>'; }).join('') || empty('No lost customers added'); };
-    $app.innerHTML = '<h2>🧮 ' + T('Day close entry', 'दिन की एंट्री') + '</h2><div class="filters"><label>Date<input type="date" id="dcd" value="' + r.date + '" max="' + S.today + '"></label></div><p class="small muted">' + h(r.store.name) + '</p>' +
-      '<form id="dcf"><div class="card stack"><h3>My customers today</h3><div class="grid2"><label>Customers attended<input name="attended" inputmode="numeric" required value="' + (r.mine ? r.mine.attended : '') + '"></label><label>Customers converted (bought)<input name="converted" inputmode="numeric" required value="' + (r.mine ? r.mine.converted : '') + '"></label></div></div>' +
+    var today = r.today || S.today, oldDay = r.date < today, minD = r.minDate || (r.windowOpen && r.yesterday ? r.yesterday : today), maxD = r.maxDate || today, closed = r.canSubmit === false;
+    var dateBar = '<div class="filters"><label>Date<input type="date" id="dcd" value="' + r.date + '" min="' + (r.date < minD ? r.date : minD) + '" max="' + maxD + '"></label></div><p class="small muted">' + h(r.store.name) + '</p>';
+    var wireDate = function () { $('dcd').onchange = function () { go('/dayclose?date=' + $('dcd').value); }; };
+    if (closed) {
+      $app.innerHTML = '<h2>🧮 ' + T('Day close entry', 'दिन की एंट्री') + '</h2>' + dateBar +
+        '<div class="card center">' + empty('Day close for ' + dLabel(r.date) + ' can be sent only until ' + cutLabel(r.cutoff) + ' the next morning. ' + (r.mine ? 'Already entered.' : 'Not submitted.')) + '</div>' +
+        (today ? '<p class="small"><a href="#" data-go="/dayclose?date=' + today + '">Today\'s day close ›</a></p>' : '');
+      wireDate(); return;
+    }
+    $app.innerHTML = '<h2>🧮 ' + T('Day close entry', 'दिन की एंट्री') + '</h2>' + dateBar +
+      (oldDay ? '<div class="card hl small"><b>Day close for ' + dLabel(r.date) + '</b> (yesterday). Counted to ' + dLabel(r.date) + '. Send before ' + cutLabel(r.cutoff) + '.</div>' : '') +
+      (!oldDay && r.windowOpen && r.yesterday ? '<p class="small"><a href="#" data-go="/dayclose?date=' + r.yesterday + '">Yesterday\'s day close (till ' + cutLabel(r.cutoff) + ') ›</a></p>' : '') +
+      '<form id="dcf"><div class="card stack"><h3>' + (oldDay ? 'My customers for ' + dLabel(r.date) : 'My customers today') + '</h3><div class="grid2"><label>Customers attended<input name="attended" inputmode="numeric" required value="' + (r.mine ? r.mine.attended : '') + '"></label><label>Customers converted (bought)<input name="converted" inputmode="numeric" required value="' + (r.mine ? r.mine.converted : '') + '"></label></div></div>' +
       (r.manager ? '<div class="card stack"><h3>Store footfall</h3><p class="small hl" style="padding:8px;border-radius:8px">' + h(r.def) + '</p><label>Footfall (walk-ins)<input name="footfall" inputmode="numeric" required value="' + (r.footfall ? r.footfall.footfall : '') + '"></label><label>Note<input name="note" value="' + h(r.footfall ? r.footfall.note : '') + '"></label><p class="small muted">Fusion invoices so far: ' + r.invoices + ' · Staff entries: ' + (r.team || []).filter(function (u) { return u.entered; }).length + ' of ' + (r.team || []).filter(function (u) { return !u.off || u.entered; }).length + '</p>' +
         '<ul class="list small">' + (r.team || []).map(function (u) { return '<li><span>' + h(u.name) + '</span><span>' + (u.entered ? u.attended + ' attended, ' + u.converted + ' converted' : u.off ? '<span class="tag">Week off</span>' : '<span class="low-t">not entered</span>') + '</span></li>'; }).join('') + '</ul></div>' +
         '<div class="card"><div class="row-between"><h3>Lost customers (left without buying)</h3><button type="button" class="sm" id="addl">+ Add</button></div><p class="small muted">One row per customer who left without buying.</p><div id="lostbox">' + lostRows() + '</div></div>' : '') +
       '<button class="primary block big">Save day close entry</button></form><div id="flags"></div>';
-    $('dcd').onchange = function () { go('/dayclose?date=' + $('dcd').value); };
+    wireDate();
     var sync = function () { Array.prototype.forEach.call(document.querySelectorAll('[data-l]'), function (row) { var i = Number(row.getAttribute('data-l')); Array.prototype.forEach.call(row.querySelectorAll('[data-k]'), function (el) { lost[i][el.getAttribute('data-k')] = el.value; }); }); };
     var draw = function () { $('lostbox').innerHTML = lostRows(); Array.prototype.forEach.call(document.querySelectorAll('[data-del]'), function (b) { b.onclick = function () { sync(); lost.splice(Number(b.getAttribute('data-del')), 1); draw(); }; }); };
     if ($('addl')) { $('addl').onclick = function () { sync(); lost.push({ reason: r.reasons[0], staff_id: '', note: '' }); draw(); }; draw(); }
