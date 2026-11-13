@@ -548,7 +548,7 @@ on(/^\/more$/, function () {
   var L = [['/gallery', '🗂️ Photos by date', 'checklist_view'], ['/help', '❓ Samjho / Help: what each number means'], ['/offers', '🏷️ Offers board', 'offers_read'], ['/offers-status', '📊 Offer status by store', 'offer_status'], ['/circulars', '📢 Circulars'], ['/lost', '❌ Lost sales'], ['/tasks', '✅ Store to-do list'], ['/kamai', '💰 Meri Kamai', 'sales_own'], ['/store-sales', '📈 Store sales and staff', 'sales_store'],
     ['/ranking', '🏆 All-store ranking', 'ranking'], ['/team', '👥 Team attendance', 'team_attendance'], ['/att', '✅ Attendance: approvals, payroll, audit', 'attendance_admin_view'], ['/weekoff', '🗓️ Week off (Mon-Sun)', 'weekoff_view'], ['/cash', '💵 Cash tally', 'cash'], ['/cash-all', '💵 Cash tallies (all stores)', 'cash_view_all'], ['/petty', '🧾 Petty cash', 'petty'],
     ['/manual', '✍️ Manual bills (bill book) + Fusion match', 'sales_manual'], ['/customer', '🔎 Customer history (by mobile)', 'cust_history'], ['/yesterday', '📅 Yesterday report + last JC', 'perf'], ['/import', '⬆️ Fusion sales import', 'sales_import'], ['/review', '🖼️ Photo review', 'photo_review'], ['/audit', '📝 Store audit', 'audit'], ['/perf', '📊 Store performance', 'perf'], ['/categories', '🗂️ Category sales (group / sub group)', 'perf'], ['/dayclose', '🧮 Day close entry (walk-ins, footfall, lost customers)', 'perf_entry'], ['/training', '🎓 Training', 'training'], ['/training-team', '🎓 Team training progress', 'training_team'],
-    ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
+    ['/dashboard', '📊 Owner dashboard', 'dashboard'], ['/admin', '⚙️ Admin: users, stores, targets, rules', 'admin'], ['/targets', '🎯 Targets: month, JC, day, import, suggestions', 'targets_view'], ['/achieve', '📈 Achievement: MTD, date range, one date', 'dashboard'], ['/phase2', '🎓 Training, quiz, challenges (Phase 2)', 'phase2'], ['/password', '🔑 Change password']];
   $app.innerHTML = '<h2>More</h2><div class="card"><ul class="list">' + L.filter(function (x) { return !x[2] || can(x[2]); }).map(function (x) { return '<li><a href="#" data-go="' + x[0] + '">' + x[1] + '</a><span class="muted">›</span></li>'; }).join('') + '</ul></div>' +
     '<div class="card row-between"><span>' + h(S.user.name) + '<br><span class="small muted">' + h(S.user.role_label) + ' · ' + h(S.user.username) + '</span></span><button class="danger" id="logout">Sign out</button></div>';
   $('logout').onclick = function () { call('logout').catch(function () {}).then(signOutLocal); };
@@ -1672,7 +1672,7 @@ on(/^\/admin$/, function () {
         '<div class="card"><ul class="list">' + (r.stores || []).map(function (s) { return '<li><span><b>' + h(s.code) + '</b> ' + h(s.name) + '<br><span class="tiny muted">' + (s.lat !== '' ? s.lat + ', ' + s.lng + (n(s.gps_confirmed) ? ' ✓' : ' (not checked)') : 'no GPS') + ' · ' + h(s.open_time) + '-' + h(s.close_time) + '</span></span><span>' + (n(s.active) ? '<span class="tag ok">live</span>' : '<span class="tag">off</span>') + ' <a href="#" data-go="/admin?tab=stores&edit=' + s.id + '" class="small">Edit</a></span></li>'; }).join('') + '</ul></div>';
     } else if (tab === 'targets') {
       var live = (r.stores || []).filter(function (s) { return n(s.active); });
-      body = '<div class="filters"><label>Month<input type="month" id="mm" value="' + month + '"></label></div><div class="card tablewrap"><table><tr><th>Store</th><th class="r">Month</th>' + (r.jcs || []).map(function (j) { return '<th class="r">' + h(j.name.split(' ')[0]) + '</th>'; }).join('') + '<th></th></tr>' +
+      body = '<div class="card"><a class="btn primary sm" href="#/targets?month=' + month + '">🎯 Targets screen: per store JC dates, daily targets, freeze, Excel import, suggestions</a></div><div class="filters"><label>Month<input type="month" id="mm" value="' + month + '"></label></div><div class="card tablewrap"><table><tr><th>Store</th><th class="r">Month</th>' + (r.jcs || []).map(function (j) { return '<th class="r">' + h(j.name.split(' ')[0]) + '</th>'; }).join('') + '<th></th></tr>' +
         live.map(function (s) { var tv = function (type, pid) { var t = (r.targets || []).filter(function (x) { return x.period_type === type && x.period_id === pid && Number(x.store_id) === Number(s.id) && !x.user_id; })[0]; return t ? t.amount : ''; };
           return '<tr><td><b>' + h(s.code) + '</b></td><td class="r"><input data-t="month|' + month + '|' + s.id + '" value="' + tv('month', month) + '" style="width:100px"></td>' + (r.jcs || []).map(function (j) { return '<td class="r"><input data-t="jc|' + j.id + '|' + s.id + '" value="' + tv('jc', j.id) + '" style="width:90px"></td>'; }).join('') + '<td></td></tr>'; }).join('') +
         '</table><button class="primary mt" id="st">Save targets</button><p class="tiny muted">Person target = store target x person_target_pct (Settings, 90) / number of salespeople. Add a row in the Targets tab with a user_id to override one person. Day targets use the store weekday weights.</p></div>' +
@@ -1696,6 +1696,256 @@ on(/^\/admin$/, function () {
     if ($('gf')) $('gf').onsubmit = function (e) { e.preventDefault(); call('saveSettings', { values: formData(e.target) }).then(function () { toast('Settings saved'); }).catch(fail); };
   });
 }, 'admin');
+
+// ---------- Targets (v29): store + month, month / JC / day editable with Save and Freeze, importer, old sales upload, suggestions ----------
+var TG_TABS = [['plan', 'Set targets'], ['import', 'Import Excel'], ['old', 'Upload old sales'], ['suggest', 'Suggestions']];
+function tgNum(s) { var n = Number(String(s == null ? '' : s).replace(/[,₹\s%]/g, '')); return isFinite(n) ? n : 0; }
+function tgLock(f) { return f ? '<span class="pill mid" title="Frozen">🔒</span>' : ''; }
+function tgBasis(b) { return b ? '<span class="tiny muted">' + h(b) + '</span>' : ''; }
+function tgPill(p) { return '<span class="pill ' + (p >= 100 ? 'good' : p >= 80 ? 'mid' : 'low') + '">' + Math.round(p) + '%</span>'; }
+function tgHead(month, sid, tab, stores, extra) {
+  return '<div class="row-between"><h2>🎯 Targets</h2><div class="btnrow"><a class="btn ghost sm" href="#/achieve">📈 Achievement</a></div></div>' +
+    '<div class="filters"><label>Month<input type="month" id="tgm" value="' + month + '"></label><label>Store<select id="tgs">' + opt(stores.map(function (s) { return [s.id, s.name]; }), sid, 'All stores') + '</select></label></div>' +
+    '<div class="btnrow" style="margin-bottom:10px">' + TG_TABS.map(function (x) { return '<button class="sm ' + (x[0] === tab ? 'navy' : '') + '" data-tgt="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' + (extra || '');
+}
+function tgWire(month, sid, tab) {
+  var nav = function (t, s, m) { go('/targets?tab=' + (t || tab) + '&store=' + (s == null ? sid : s) + '&month=' + (m || month)); };
+  $('tgm').onchange = function () { if (this.value) nav(null, null, this.value); };
+  $('tgs').onchange = function () { nav(null, this.value); };
+  all('[data-tgt]').forEach(function (b) { b.onclick = function () { nav(b.getAttribute('data-tgt')); }; });
+}
+on(/^\/targets$/, function () {
+  var month = /^\d{4}-\d{2}$/.test(q('month')) ? q('month') : S.today.slice(0, 7), sid = q('store') || '', tab = q('tab') || 'plan';
+  return call('targetsOverview', { month: month }).then(function (ov) {
+    var stores = ov.stores, head = tgHead(month, sid, tab, stores);
+    if (tab === 'import') return tgImport(month, sid, tab, ov, head);
+    if (tab === 'old') return tgOld(month, sid, tab, ov, head);
+    if (tab === 'suggest') return tgSuggest(month, sid, tab, ov, head);
+    if (!sid) return tgOverview(month, sid, tab, ov, head);
+    return tgPlan(month, sid, tab, ov, head);
+  });
+}, 'targets_view');
+function tgOverview(month, sid, tab, ov, head) {
+  var tot = 0;
+  $app.innerHTML = head + '<div class="card tablewrap"><table class="tbl"><tr><th>Store</th><th class="r">Month</th><th class="r">JC1</th><th class="r">JC2</th><th class="r">JC3</th><th class="r">Last month</th><th></th></tr>' +
+    ov.stores.map(function (s) { tot += s.month; return '<tr' + (s.active ? '' : ' class="inactive"') + '><td><a href="#/targets?store=' + s.id + '&month=' + month + '">' + h(s.name) + '</a></td><td class="r"><b>' + inr(s.month) + '</b> ' + tgLock(s.frozen) + '</td>' +
+      [0, 1, 2].map(function (i) { var j = s.jcs[i]; return '<td class="r">' + (j ? inr(j.amount) + '<br><span class="tiny muted">' + j.pct + '%</span>' + tgLock(j.frozen) : '') + '</td>'; }).join('') + '<td class="r">' + (s.prev ? inr(s.prev) : '') + '</td><td>' + tgBasis(s.basis) + '</td></tr>'; }).join('') +
+    '<tr class="total"><td>Total</td><td class="r">' + inr(tot) + '</td><td></td><td></td><td></td><td class="r">' + inr(ov.stores.reduce(function (a, s) { return a + s.prev; }, 0)) + '</td><td></td></tr></table></div>' +
+    '<p class="tiny muted">Pick a store to edit its month, JC cycles and daily targets. ' + (ov.draftNote ? 'Auto draft for ' + h(ov.draftNote) + ' was made on the 20th: rows marked "draft" are suggestions; edit and freeze them.' : 'On the 20th of every month a draft for next month is made for stores without a target.') + '</p>';
+  tgWire(month, sid, tab);
+}
+function tgPlan(month, sid, tab, ov, head) {
+  return call('targetPlan', { store_id: sid, month: month }).then(function (p) {
+    var ed = p.canEdit, dis = ed ? '' : ' disabled', m = p.monthRow, c = p.check, rows = '';
+    var jcRows = p.jcs.map(function (j) {
+      return '<tr><td><b>JC' + j.no + '</b> ' + tgLock(j.frozen) + '</td><td><input type="date" data-jcs="' + j.no + '" value="' + j.start + '"' + (dis || (j.frozen ? ' disabled' : '')) + '></td><td><input type="date" data-jce="' + j.no + '" value="' + j.end + '"' + (dis || (j.frozen ? ' disabled' : '')) + '></td>' +
+        '<td><input type="number" step="0.01" data-jcp="' + j.no + '" value="' + j.pct + '" style="width:80px"' + (dis || (j.frozen ? ' disabled' : '')) + '></td><td><input type="number" data-jca="' + j.no + '" value="' + j.amount + '" style="width:110px"' + (dis || (j.frozen ? ' disabled' : '')) + '></td>' +
+        '<td class="r">' + inr(j.sumDays) + (Math.abs(j.dayDiff) > 1 ? '<br><span class="tiny" style="color:var(--low)">' + (j.dayDiff > 0 ? '+' : '') + inr(j.dayDiff) + '</span>' : '') + '</td>' +
+        '<td>' + (ed ? '<button class="sm" data-jcsave="' + j.no + '"' + (j.frozen ? ' disabled' : '') + '>Save</button> <button class="sm ghost" data-jcfz="' + j.no + '|' + (j.frozen ? 0 : 1) + '">' + (j.frozen ? 'Unfreeze' : 'Freeze') + '</button>' + (j.overrides ? ' <button class="sm ghost" data-jcreset="' + j.no + '" title="Back to weekday split">Reset ' + j.overrides + ' day(s)</button>' : '') : '') + '</td></tr>';
+    }).join('');
+    var dayRows = p.days.map(function (d) {
+      return '<tr class="' + (d.date === S.today ? 'total' : '') + '"><td>' + dLabel(d.date) + ' <span class="tiny muted">' + d.dow + '</span></td><td>' + (d.jc ? 'JC' + d.jc : '<span class="tiny" style="color:var(--low)">no JC</span>') + '</td><td class="r tiny muted">' + (d.weight * 100).toFixed(1) + '%</td>' +
+        '<td><input type="number" data-day="' + d.date + '" value="' + d.target + '" style="width:100px' + (d.override ? ';border-color:var(--navy)' : '') + '"' + (dis || (d.frozen ? ' disabled' : '')) + '> ' + tgLock(d.frozen) + '</td><td class="r">' + (d.actual == null ? '' : inr(d.actual)) + '</td><td class="r">' + (d.actual == null || !d.target ? '' : tgPill(d.actual * 100 / d.target)) + '</td><td class="r tiny muted">' + (d.ly == null ? '' : inr(d.ly)) + '<br>' + h(d.ly_tag || '') + '</td></tr>';
+    }).join('');
+    $app.innerHTML = head +
+      '<div class="card stack"><div class="row-between"><div><b>' + h(p.store.name) + '</b> · ' + month + '</div><div>' + (ed ? '<button class="sm ghost" id="fzall" data-f="' + (m.frozen && p.jcs.every(function (j) { return j.frozen; }) ? 0 : 1) + '">' + (m.frozen && p.jcs.every(function (j) { return j.frozen; }) ? '🔓 Unfreeze all' : '🔒 Freeze all') + '</button>' : '<span class="pill mid">Read only</span>') + '</div></div>' +
+      '<div class="grid2"><label>Month target (Rs) ' + tgLock(m.frozen) + ' ' + tgBasis(m.basis) + '<input type="number" id="mamt" value="' + (m.amount || '') + '"' + (dis || (m.frozen ? ' disabled' : '')) + '></label>' +
+      '<div class="small">' + (ed ? '<button class="primary" id="msave"' + (m.frozen ? ' disabled' : '') + '>Save month</button> <button class="ghost" id="mfz" data-f="' + (m.frozen ? 0 : 1) + '">' + (m.frozen ? 'Unfreeze' : 'Freeze') + ' month</button>' : '') + '<div class="tiny muted" style="margin-top:6px">' + (m.updated_at ? 'Last change ' + h(String(m.updated_at).slice(0, 16).replace('T', ' ')) + ' ' + h(m.source || '') : 'No target saved yet') + (m.frozen_by ? ' · frozen by ' + h(m.frozen_by) : '') + '</div></div></div>' +
+      '<div class="small ' + (c.okJc && c.okDays ? '' : 'warn') + '">Check: month <b>' + inr(c.month) + '</b> · JC total <b>' + inr(c.sumJc) + '</b> ' + (c.okJc ? '✅' : '⚠️ differs by ' + inr(c.sumJc - c.month)) + ' · day total <b>' + inr(c.sumDays) + '</b> ' + (c.okDays ? '✅' : '⚠️ differs by ' + inr(c.sumDays - c.month)) + '</div>' +
+      '<div class="small">Wow day threshold: day sale above <b>' + inr(p.wow.threshold) + '</b> (' + p.wow.pctOfMonth + '% of month). Pays a flat Rs 750 per Wow day. Change the % in Admin > Incentive rules (WOW day, from_val).</div></div>' +
+      '<div class="card tablewrap"><b>JC cycles (own dates for this store)</b><table class="tbl"><tr><th>JC</th><th>From</th><th>To</th><th class="r">% of month</th><th class="r">Amount</th><th class="r">Day total</th><th></th></tr>' + jcRows + '</table>' +
+      (ed ? '<p class="tiny muted">Change % or Amount and Save. Saving a JC rescales its edited days. The % and amount stay in step with the month target.</p>' : '') + '</div>' +
+      '<div class="card tablewrap"><b>Daily targets</b> <span class="tiny muted">weekday weights of this store; type a number to override a day, clear and Save to go back</span><table class="tbl"><tr><th>Date</th><th>JC</th><th class="r">Weight</th><th>Target</th><th class="r">Actual</th><th class="r">%</th><th class="r">Last year</th></tr>' + dayRows + '</table></div>' +
+      '<details class="card"><summary>History (' + p.audit.length + ')</summary>' + p.audit.map(function (a) { return '<div class="small">' + h(String(a.at).slice(0, 16).replace('T', ' ')) + ' · ' + h(a.user_name) + ' · ' + h(a.action) + ' ' + h(a.period_id) + (a.old_amount !== '' || a.new_amount !== '' ? ': ' + inr(a.old_amount) + ' → ' + inr(a.new_amount) : '') + (a.reason ? ' · "' + h(a.reason) + '"' : '') + '</div>'; }).join('') + '</details>';
+    tgWire(month, sid, tab);
+    var done = function (x, msg) { return x.then(function () { toast(msg || 'Saved'); route(); }).catch(fail); };
+    var base = { store_id: sid, month: month };
+    if ($('msave')) $('msave').onclick = function () { var v = $('mamt').value; if (v === '') return toast('Enter the month target', 'err'); if (!confirm('Save month target ' + inr(v) + '? Unfrozen JC cycles and edited days are rescaled to match.')) return; done(call('saveTargetLevel', Object.assign({ level: 'month', amount: v }, base))); };
+    var fz = function (scope, jc, f) {
+      var reason = f ? '' : prompt('Why are you unfreezing? (saved in the history)'); if (!f && !reason) return toast('Unfreeze needs a reason', 'err');
+      done(call('freezeTargets', Object.assign({ scope: scope, jc_no: jc, freeze: !!f, reason: reason }, base)), f ? 'Frozen' : 'Unfrozen');
+    };
+    if ($('mfz')) $('mfz').onclick = function () { fz('month', '', Number(this.getAttribute('data-f'))); };
+    if ($('fzall')) $('fzall').onclick = function () { fz('all', '', Number(this.getAttribute('data-f'))); };
+    all('[data-jcsave]').forEach(function (b) { b.onclick = function () { var n = b.getAttribute('data-jcsave'), pc = document.querySelector('[data-jcp="' + n + '"]').value, am = document.querySelector('[data-jca="' + n + '"]').value, old = p.jcs[n - 1], d = { level: 'jc', jc_no: n, start: document.querySelector('[data-jcs="' + n + '"]').value, end: document.querySelector('[data-jce="' + n + '"]').value };
+      if (String(pc) !== String(old.pct) && String(am) === String(old.amount)) d.pct = pc; else d.amount = am; done(call('saveTargetLevel', Object.assign(d, base))); }; });
+    all('[data-jcfz]').forEach(function (b) { b.onclick = function () { var a = b.getAttribute('data-jcfz').split('|'); fz('jc', a[0], Number(a[1])); }; });
+    all('[data-jcreset]').forEach(function (b) { b.onclick = function () { if (confirm('Remove the typed day targets of this JC and go back to the weekday split?')) done(call('saveTargetLevel', Object.assign({ level: 'resetdays', jc_no: b.getAttribute('data-jcreset') }, base))); }; });
+    all('[data-day]').forEach(function (i) { var o = i.value; i.onchange = function () { var d = i.getAttribute('data-day'); if (i.value === o) return; call('saveTargetLevel', Object.assign({ level: 'day', date: d, amount: i.value }, base)).then(function () { toast('Day saved'); route(); }).catch(function (e) { i.value = o; fail(e); }); }; });
+  });
+}
+
+// ---- Excel importer (Oct tracker workbooks, Target for Nov list); parsed here, previewed and saved on the server
+var TG_ALIAS = [['KN', ['k nagar', 'kamla']], ['RC', ['rohini', 'roh']], ['MG', ['mahagun']], ['EE', ['elan']], ['PM', ['pacific']], ['V3', ['v3']], ['MN', ['mukherjee']], ['BW', ['h&s', 'boulevard', 'bw']], ['BR', ['burari']], ['IC', ['icon']]];
+function tgKey(t) { t = String(t || '').toLowerCase(); for (var i = 0; i < TG_ALIAS.length; i++) for (var j = 0; j < TG_ALIAS[i][1].length; j++) if (t.indexOf(TG_ALIAS[i][1][j]) >= 0) return TG_ALIAS[i][0]; return t.replace(/^\d+\s*/, ''); }
+var TG_MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+function tgMonthOf(t) { var m = String(t || '').match(/([A-Za-z]{3})[a-z]*[\s'’-]*(\d{2,4})/); if (!m || !TG_MON[m[1].toLowerCase()]) return ''; var y = Number(m[2]); if (y < 100) y += 2000; return y + '-' + ('0' + TG_MON[m[1].toLowerCase()]).slice(-2); }
+function tgDateMonth(s) { var m = String(s || '').match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/); return m && TG_MON[m[2].toLowerCase()] ? m[3] + '-' + ('0' + TG_MON[m[2].toLowerCase()]).slice(-2) : ''; }
+/** One workbook ({name, sheets:[{name, rows}]}) -> { kind, items, weights, keypersons, notes } */
+function tgParseBook(fname, sheets) {
+  var out = { file: fname, kind: '', items: [], weights: [], keypersons: [], notes: [] };
+  var tr = sheets.filter(function (s) { return /monthly target/i.test(s.name); })[0];
+  if (tr) { // store tracker
+    out.kind = 'tracker'; var store = fname.replace(/\.[^.]+$/, '').replace(/\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s*Target Tracker.*$/i, '').trim(), rows = tr.rows, month = '';
+    for (var i = 1; i < rows.length && !month; i++) month = tgDateMonth(rows[i][0]);
+    var R3 = tgNum((rows[2] || [])[17]); if (!month || !R3) { out.notes.push('Could not read month or target (R3) in ' + fname); return out; }
+    out.items.push({ store: store, period_id: month, amount: R3, label: 'month' });
+    [0, 1, 2].forEach(function (k) { var pc = tgNum((rows[2] || [])[18 + k]), am = tgNum((rows[1] || [])[18 + k]); if (pc > 0 && pc <= 1.5) pc *= 100; if (!am && pc) am = Math.round(R3 * pc / 100); if (am) out.items.push({ store: store, period_id: month + '-JC' + (k + 1), amount: Math.round(am), pct: pc, label: 'JC' + (k + 1) }); });
+    var s1 = sheets.filter(function (s) { return /^sheet1$/i.test(s.name); })[0], w = {}, DN = { monday: 'MON', tuesday: 'TUE', wednesday: 'WED', thursday: 'THU', friday: 'FRI', saturday: 'SAT', sunday: 'SUN' };
+    if (s1) s1.rows.forEach(function (r) { var k = DN[String(r[0]).toLowerCase()]; if (k) { var v = tgNum(r[1]); w[k] = v > 1 ? v / 100 : v; } });
+    if (Object.keys(w).length < 7) rows.slice(1).forEach(function (r) { var k = DN[String(r[1]).toLowerCase()]; if (k && !w[k]) { var v = tgNum(r[2]); if (v) w[k] = v > 1 ? v / 100 : v; } }); // Sheet1 is hidden in the trackers: the % Contr column of the daily sheet has the same weights
+    if (Object.keys(w).length === 7) out.weights.push({ store: store, w: w });
+    return out;
+  }
+  var tl = sheets.filter(function (s) { return s.rows[0] && /^store$/i.test(s.rows[0][0]) && /target/i.test(s.rows[0][1] || ''); })[0];
+  if (tl) { // "Target for Nov" list with keypersons
+    out.kind = 'list'; var mo = tgMonthOf(tl.rows[0][1]) || tgMonthOf(fname); if (!mo) { out.notes.push('No month in the header "' + tl.rows[0][1] + '"'); return out; }
+    tl.rows.slice(1).forEach(function (r) {
+      var amt = tgNum(r[1]); if (!r[0] || /total/i.test(r[0]) || !amt) return;
+      out.items.push({ store: r[0], period_id: mo, amount: amt, label: 'month' });
+      var names = String(r[2] || '').split(/&|,| and /i).map(function (x) { return x.trim(); }).filter(Boolean), sp = String(r[7] || '').match(/(\d+)\s*-\s*(\d+)/), shares = sp && names.length === 2 ? [Number(sp[1]) / 100, Number(sp[2]) / 100] : names.map(function () { return 1 / names.length; });
+      if (names.length) out.keypersons.push({ store: r[0], award: tgNum(r[5]), people: names.map(function (n, i) { return { name: n, share: Math.round(shares[i] * 100) / 100 }; }) });
+    });
+    return out;
+  }
+  out.notes.push('Not recognised: ' + fname + ' (expected a "... Target Tracker" workbook or the "Target for ..." list)'); return out;
+}
+/** Months that have a month target but no JC rows get JC rows from the store's latest tracker JC shares (Oct % for Nov). */
+function tgDeriveJc(parsed) {
+  var shares = {}, byMonth = {}, extra = [];
+  parsed.forEach(function (p) { p.items.forEach(function (it) { var ym = it.period_id.slice(0, 7), k = tgKey(it.store); if (/-JC\d$/.test(it.period_id)) { shares[k] = shares[k] || {}; (shares[k][ym] = shares[k][ym] || {})[it.period_id.slice(-1)] = it; } else (byMonth[k] = byMonth[k] || {})[ym] = it; }); });
+  Object.keys(byMonth).forEach(function (k) { Object.keys(byMonth[k]).forEach(function (ym) {
+    if (shares[k] && shares[k][ym]) return; var src = shares[k] ? Object.keys(shares[k]).sort().pop() : '', s = src ? shares[k][src] : null; if (!s || !s[1] || !s[2] || !s[3]) return;
+    var m = byMonth[k][ym], tot = tgNum(s[1].amount) + tgNum(s[2].amount) + tgNum(s[3].amount), used = 0;
+    [1, 2, 3].forEach(function (n) { var a = n === 3 ? m.amount - used : Math.round(m.amount * tgNum(s[n].amount) / tot); used += a; extra.push({ store: m.store, period_id: ym + '-JC' + n, amount: a, pct: Math.round(tgNum(s[n].amount) * 10000 / tot) / 100, label: 'JC' + n + ' from ' + src + ' %' }); });
+  }); });
+  return extra;
+}
+function tgImport(month, sid, tab, ov, head) {
+  $app.innerHTML = head + '<div class="card stack"><b>Import targets from Excel</b><p class="small muted">Choose the "Target for Nov\'26" list and/or the store tracker workbooks (K Nagar Oct Target Tracker 2026.xlsx and so on). You see a preview first; nothing is saved until you press Save. Frozen rows are never overwritten. Months with only a month total get JC rows from the store\'s last tracker % (Oct % for Nov).</p>' +
+    '<input type="file" id="tgf" accept=".xlsx,.csv" multiple><div id="tgprev" class="small"></div></div>';
+  tgWire(month, sid, tab); var payload = null;
+  var show = function (r, saved) {
+    var tb = r.rows.map(function (x) { return '<tr><td>' + h(x.store) + '</td><td>' + h(x.period_id) + '</td><td class="r">' + (x.old == null ? '' : inr(x.old)) + '</td><td class="r"><b>' + inr(x.amount) + '</b></td><td>' + (x.frozen && !x.same ? '🔒 skipped (frozen)' : x.same ? 'same' : x.old == null ? 'new' : 'changes') + ' <span class="tiny muted">' + h(x.label) + '</span></td></tr>'; }).join('');
+    $('tgprev').innerHTML = (r.unmatchedStores.length ? '<div class="card" style="border-color:var(--low)"><b>Stores not found: ' + h(r.unmatchedStores.join(', ')) + '</b><br>Not saved. Add or fix them in Admin > Stores first (the store list is never changed here).</div>' : '') +
+      '<div class="tablewrap"><table class="tbl"><tr><th>Store</th><th>Period</th><th class="r">Now</th><th class="r">File</th><th></th></tr>' + tb + '</table></div>' +
+      (r.weights.length ? '<label><input type="checkbox" id="tgw"> Also set weekday weights of ' + r.weights.length + ' store(s) from the trackers</label>' : '') +
+      (r.keypersons.length ? '<details open><summary>Key persons (Keyperson award = Wow month)</summary>' + r.keypersons.map(function (k) { return '<div>' + h(k.store) + ': ' + k.people.map(function (p) { return h(p.name) + ' ' + Math.round(p.share * 100) + '%' + (p.user_id ? ' ✅' : ' ⚠️ no user') + (p.user_id && !p.store_ok ? ' (other store)' : ''); }).join(', ') + ' · award ' + inr(k.award100) + '</div>'; }).join('') + '<label><input type="checkbox" id="tgk"> Also set key_share for the matched users (users are never created)</label></details>' : '') +
+      (saved ? '<div class="card" style="border-color:var(--good)">Saved ' + saved + ' row(s).</div>' : '<button class="primary block" id="tgsave">Save ' + r.rows.filter(function (x) { return !x.frozen && !x.same; }).length + ' change(s)</button>');
+    if ($('tgsave')) $('tgsave').onclick = function () { call('importTargets', Object.assign({}, payload, { commit: true, apply_weights: $('tgw') && $('tgw').checked, apply_keys: $('tgk') && $('tgk').checked })).then(function (x) { toast('Saved ' + x.saved + ' row(s)'); show(x, x.saved); }).catch(fail); };
+  };
+  $('tgf').onchange = function () {
+    var files = Array.prototype.slice.call(this.files); $('tgprev').textContent = 'Reading ' + files.length + ' file(s)...';
+    Promise.all(files.map(function (f) { return readSheetFile(f).then(function (sh) { return tgParseBook(f.name, sh); }); })).then(function (parsed) {
+      var items = [], weights = [], keys = [], notes = []; parsed.forEach(function (p) { items = items.concat(p.items); weights = weights.concat(p.weights); keys = keys.concat(p.keypersons); notes = notes.concat(p.notes); });
+      items = items.concat(tgDeriveJc(parsed)); if (!items.length) { $('tgprev').innerHTML = '<div class="card">' + (notes.map(h).join('<br>') || 'Nothing found.') + '</div>'; return; }
+      payload = { items: items, weights: weights, keypersons: keys, file: files.map(function (f) { return f.name; }).join(', ').slice(0, 120) };
+      return call('importTargets', payload).then(function (r) { show(r); if (notes.length) $('tgprev').insertAdjacentHTML('afterbegin', '<div class="card">' + notes.map(h).join('<br>') + '</div>'); });
+    }).catch(fail);
+  };
+}
+
+// ---- Upload old sales data -> SalesLY
+var TG_OLD_TPL = 'Date,Store,Net Sales,Bills,Units\n01-10-2025,Kamla Nagar,152340,41,96\n02-10-2025,Kamla Nagar,98120,30,71\n01-10-2025,Rohini,120500,35,80\n';
+function tgGuess(head, res, skip) { for (var i = 0; i < res.length; i++) for (var j = 0; j < head.length; j++) if (skip.indexOf(j) < 0 && res[i].test(String(head[j]))) return j; return -1; }
+function tgOld(month, sid, tab, ov, head) {
+  $app.innerHTML = head + '<div class="card stack"><b>Upload old sales data</b><p class="small muted">Excel or CSV of past sales with at least <b>date</b>, <b>store</b> and <b>net sales amount</b>. Bill-level files (one row per bill or item line) are added up per day and store. You see the store mapping and totals first. Uploading the same dates again replaces those days only; nothing else is removed. The Suggestions use this data.</p>' +
+    '<div class="btnrow"><button class="sm" id="otpl">⬇ Download template (CSV)</button></div><input type="file" id="of" accept=".xlsx,.csv"><div id="omap" class="small"></div><div id="oprev" class="small"></div></div><div id="ostat"></div>';
+  tgWire(month, sid, tab);
+  call('oldSalesStatus', {}).then(function (st) { $('ostat').innerHTML = '<div class="card tablewrap"><b>Old sales loaded</b><table class="tbl"><tr><th>Store</th><th class="r">Days</th><th>From</th><th>To</th></tr>' + st.stores.map(function (s) { return '<tr><td>' + h(s.name) + '</td><td class="r">' + (s.days || '<span class="tiny muted">none</span>') + '</td><td>' + h(s.from) + '</td><td>' + h(s.to) + '</td></tr>'; }).join('') + '</table></div>' +
+    '<details class="card"><summary>Festival dates used to line up last year (edit in the FestivalMap tab of the Sheet)</summary>' + st.festivals.map(function (f) { return '<div class="tiny">' + h(f.date) + ' · ' + h(f.label) + ' (' + f.before + ' before, ' + f.after + ' after)</div>'; }).join('') + '</details>'; });
+  $('otpl').onclick = function () { download('old-sales-template.csv', TG_OLD_TPL); };
+  var book = null, sheet = null, cols = {};
+  var fields = [['date', 'Date'], ['store', 'Store / location'], ['amount', 'Net sales amount'], ['bill_no', 'Bill number (optional)'], ['bills', 'Bills count (optional)'], ['units', 'Qty / units (optional)']];
+  var draw = function () {
+    var hd = sheet.rows[cols.hr] || []; $('omap').innerHTML = (book.length > 1 ? '<label>Sheet<select id="osh">' + opt(book.map(function (s, i) { return [i, s.name + ' (' + s.rows.length + ' rows)']; }), book.indexOf(sheet)) + '</select></label>' : '') +
+      '<div class="grid2">' + fields.map(function (f) { return '<label>' + f[1] + '<select data-oc="' + f[0] + '">' + opt(hd.map(function (x, i) { return [i, String(x) || 'column ' + (i + 1)]; }), cols[f[0]], '(none)') + '</select></label>'; }).join('') + '</div><label>Header row<input type="number" id="ohr" min="1" value="' + (cols.hr + 1) + '" style="width:80px"></label><button class="primary block" id="oprevb">Preview</button>';
+    if ($('osh')) $('osh').onchange = function () { sheet = book[Number(this.value)]; guess(); draw(); };
+    $('ohr').onchange = function () { cols.hr = Math.max(0, Number(this.value) - 1); guess(true); draw(); };
+    all('[data-oc]').forEach(function (s) { s.onchange = function () { cols[s.getAttribute('data-oc')] = s.value === '' ? -1 : Number(s.value); }; });
+    $('oprevb').onclick = function () { send(false); };
+  };
+  var guess = function (keep) {
+    if (!keep) { cols.hr = 0; for (var i = 0; i < Math.min(15, sheet.rows.length); i++) if (sheet.rows[i].filter(function (c) { return String(c).trim(); }).length >= 3 && /date|store|location|amount|sale/i.test(sheet.rows[i].join(' '))) { cols.hr = i; break; } }
+    var hd = (sheet.rows[cols.hr] || []).map(String), used = [];
+    cols.date = tgGuess(hd, [/^(bill |voucher |invoice )?date$/i, /date|dt$/i], used); used.push(cols.date);
+    cols.store = tgGuess(hd, [/location/i, /^store/i, /outlet|branch|shop/i], used); used.push(cols.store);
+    cols.bill_no = tgGuess(hd, [/vch|voucher no|bill no|invoice|bill number|bill ref/i], used); used.push(cols.bill_no);
+    cols.bills = tgGuess(hd, [/^(no\.? of )?bills?( count)?$/i, /bill count|no of bills|transactions/i], used); used.push(cols.bills);
+    cols.units = tgGuess(hd, [/^(qty|quantity|units|pcs|pieces)$/i, /qty|quantity|units/i], used); used.push(cols.units);
+    cols.amount = tgGuess(hd, [/net.*(sale|amount|amt)/i, /total amount|net amount/i, /^(net )?sales?( amount| value)?$/i, /amount|amt|value|total/i], used);
+  };
+  var build = function () {
+    var rows = sheet.rows.slice(cols.hr + 1), agg = {}, seen = {}, g = function (r, k) { return cols[k] >= 0 ? r[cols[k]] : ''; };
+    rows.forEach(function (r) { var d = g(r, 'date'), st = String(g(r, 'store')).trim(), amt = g(r, 'amount'); if (!d && !st && amt === '') return; if (/total/i.test(String(d) + st)) return; var key = d + '|' + st, x = agg[key] = agg[key] || { date: d, store: st, amount: 0, bills: 0, units: 0, _ok: 0 };
+      x.amount += tgNum(amt); x.units += tgNum(g(r, 'units')); x._ok = x._ok || String(amt).trim() !== ''; var b = String(g(r, 'bill_no')).trim(); if (b) { seen[key + '|' + b] = seen[key + '|' + b] || (x.bills++, 1); } else x.bills += tgNum(g(r, 'bills')); });
+    return Object.keys(agg).map(function (k) { var x = agg[k]; return { date: x.date, store: x.store, amount: x._ok ? Math.round(x.amount * 100) / 100 : '', bills: x.bills, units: x.units }; });
+  };
+  var map = {};
+  var send = function (commit) {
+    if (cols.date < 0 || cols.amount < 0) return toast('Pick the date and net sales amount columns', 'err'); var rows = build();
+    call('importOldSales', { rows: rows, commit: commit, map: commit ? map : undefined, file: book.fname }).then(function (r) {
+      r.texts.forEach(function (t) { if (!(t.text in map)) map[t.text] = t.store_id || 0; });
+      $('oprev').innerHTML = (commit ? '<div class="card" style="border-color:var(--good)"><b>Saved ' + r.days + ' store-days</b> (' + r.from + ' to ' + r.to + '), total Rs ' + inr(r.total) + '. ' + (r.replaced ? r.replaced + ' existing day(s) were replaced. ' : '') + 'Suggestions now use this data.</div>' :
+        '<div class="card"><b>' + r.days + ' store-days</b> · ' + r.from + ' to ' + r.to + ' · total Rs ' + inr(r.total) + (r.replaced ? ' · ' + r.replaced + ' existing day(s) will be replaced' : '') + (r.bad ? ' · <span style="color:var(--low)">' + r.bad + ' row(s) skipped: ' + h(r.errors.join('; ')) + '</span>' : '') + (r.odd.length ? '<br>Check these unusual days: ' + h(r.odd.join(', ')) : '') + '</div>' +
+        '<div class="tablewrap"><table class="tbl"><tr><th>Store in file</th><th class="r">Rows</th><th class="r">Amount</th><th>Maps to</th></tr>' + r.texts.map(function (t) { return '<tr><td>' + h(t.text || '(blank)') + '</td><td class="r">' + t.rows + '</td><td class="r">' + inr(t.amount) + '</td><td><select data-om="' + h(t.text) + '">' + opt(r.stores.map(function (s) { return [s.id, s.name]; }), map[t.text] || '', 'Skip these rows') + '</select></td></tr>'; }).join('') + '</table></div>' +
+        '<div class="tablewrap"><table class="tbl"><tr><th>Store</th><th class="r">Days</th><th>From</th><th>To</th><th class="r">Sales</th></tr>' + r.perStore.map(function (p) { return '<tr><td>' + h(p.name) + '</td><td class="r">' + p.days + '</td><td>' + p.from + '</td><td>' + p.to + '</td><td class="r">' + inr(p.sales) + '</td></tr>'; }).join('') + '</table></div>' +
+        (r.unmatched.length ? '<p class="small" style="color:var(--low)">Not mapped yet: ' + h(r.unmatched.join(', ')) + '. Pick a store above and press Preview again, or they are skipped.</p>' : '') + '<div class="btnrow"><button class="sm" id="oref">Preview again with my mapping</button><button class="primary" id="osave"' + (r.days ? '' : ' disabled') + '>Save ' + r.days + ' store-days</button></div>');
+      all('[data-om]').forEach(function (s) { s.onchange = function () { map[s.getAttribute('data-om')] = s.value === '' ? 0 : Number(s.value); }; });
+      if ($('oref')) $('oref').onclick = function () { send(false); }; if ($('osave')) $('osave').onclick = function () { if (confirm('Save ' + r.days + ' store-days into last year sales? Same dates already there are replaced.')) send(true); };
+      if (commit) route();
+    }).catch(fail);
+  };
+  $('of').onchange = function () { var f = this.files[0]; if (!f) return; $('omap').textContent = 'Reading...'; readSheetFile(f).then(function (sh) { if (!sh.length) throw new Error('No rows found in the file.'); book = sh; book.fname = f.name; sheet = sh.slice().sort(function (a, b) { return b.rows.length - a.rows.length; })[0]; guess(); draw(); map = {}; $('oprev').innerHTML = ''; }).catch(fail); };
+}
+
+// ---- Suggestions (last year festival aligned, fallback previous month) and the suggestion Excel
+function tgCsv(rows) { if (!rows.length) return ''; var cols = Object.keys(rows[0]); return [cols].concat(rows.map(function (r) { return cols.map(function (c) { return r[c]; }); })).map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\n'); }
+function tgSuggest(month, sid, tab, ov, head) {
+  var xl = '<div class="btnrow"><button class="sm" id="sxl">📄 Suggestion Excel (all stores)</button><button class="sm ghost" id="scsv">⬇ CSV</button></div><div id="sxlo" class="small"></div>';
+  var wire = function () {
+    var run = function (csv) { $('sxlo').textContent = 'Preparing...'; call('suggestionSheet', { month: month }).then(function (x) {
+      if (csv) { download('target-suggestions-' + month + '-summary.csv', tgCsv(x.summary)); download('target-suggestions-' + month + '-daily.csv', tgCsv(x.daily)); $('sxlo').textContent = 'Two CSV files downloaded (summary and daily).'; return; }
+      $('sxlo').innerHTML = x.url ? 'Ready: <a target="_blank" rel="noopener" href="' + h(x.url) + '">open the Google Sheet</a> · <a target="_blank" rel="noopener" href="' + h(x.xlsx_url) + '">download as .xlsx</a>' : 'Could not create the Sheet (' + h(x.sheetError || '') + '). Use CSV.'; }).catch(fail); };
+    $('sxl').onclick = function () { run(false); }; $('scsv').onclick = function () { run(true); };
+  };
+  if (!sid) { $app.innerHTML = head + '<div class="card stack"><b>Suggested targets for ' + month + '</b><p class="small muted">Pick a store to see its suggestion, or download them all.</p>' + xl + '</div>'; tgWire(month, sid, tab); wire(); return; }
+  return call('targetSuggest', { store_id: sid, month: month }).then(function (s) {
+    var c = s.current, can_ = can('admin');
+    $app.innerHTML = head + '<div class="card stack"><b>' + h(s.store) + ' · ' + month + '</b>' +
+      '<div class="kpis three">' + kpi('Current month target', inr(c.month), (c.basis || '') + (c.frozen ? ' 🔒' : '')) + kpi('Suggested', s.method === 'no data' ? 'n/a' : inr(s.month_amount), s.method === 'no data' ? '' : (c.month ? Math.round((s.month_amount - c.month) * 100 / c.month) + '% vs current' : '')) + kpi('Growth used', s.hasLY ? s.growth : '-', s.hasLY ? 'on last year' : 'no last year') + '</div>' +
+      '<div class="small"><b>Method:</b> ' + h(s.method) + '</div>' + s.notes.map(function (n) { return '<div class="tiny muted">' + h(n) + '</div>'; }).join('') +
+      (s.method !== 'no data' ? '<div class="tablewrap"><table class="tbl"><tr><th>JC</th><th class="r">Current</th><th class="r">Suggested</th><th class="r">%</th></tr>' + s.jcs.map(function (j) { var cj = c.jcs.filter(function (x) { return x.no === j.no; })[0]; return '<tr><td>' + h(j.name) + '</td><td class="r">' + (cj ? inr(cj.amount) : '') + '</td><td class="r"><b>' + inr(j.amount) + '</b></td><td class="r">' + j.pct + '%</td></tr>'; }).join('') + '</table></div>' +
+        (can_ ? '<div class="btnrow"><button class="sm" data-acc="month">Use month only</button><button class="sm" data-acc="month_jc">Use month + JC</button><button class="primary sm" data-acc="all">Use month + JC + days</button></div><p class="tiny muted">Frozen rows are skipped. You can edit everything afterwards in Set targets.</p>' : '') +
+        '<div class="tablewrap"><table class="tbl"><tr><th>Date</th><th class="r">Suggested</th><th>Last year day</th><th class="r">Last year</th><th>Alignment</th></tr>' + s.days.map(function (d) { return '<tr><td>' + dLabel(d.date) + '</td><td class="r">' + inr(d.suggested) + '</td><td>' + dLabel(d.ly_date) + ' ' + String(d.ly_date).slice(0, 4) + '</td><td class="r">' + (d.ly == null ? '' : inr(d.ly)) + '</td><td class="tiny">' + h(d.tag || '') + '</td></tr>'; }).join('') + '</table></div>' : '') + xl + '</div>';
+    tgWire(month, sid, tab); wire();
+    all('[data-acc]').forEach(function (b) { b.onclick = function () { if (confirm('Apply this suggestion to ' + s.store + ' ' + month + '?')) call('acceptSuggestion', { store_id: sid, month: month, scope: b.getAttribute('data-acc') }).then(function (p) { toast('Applied' + (p.skipped && p.skipped.length ? ' (frozen skipped: ' + p.skipped.length + ')' : '')); go('/targets?store=' + sid + '&month=' + month); }).catch(fail); }; });
+  });
+}
+
+// ---------- Achievement dashboard (owner / auditor): MTD, date range, one date ----------
+on(/^\/achieve$/, function () {
+  var mode = q('mode') || 'mtd', date = q('date') || S.today, from = q('from') || date.slice(0, 8) + '01', to = q('to') || date, d = { mode: mode, date: date };
+  if (mode === 'range') { d.from = from; d.to = to; }
+  return call('achievement', d).then(function (r) {
+    var n = r.net, nav = function (m, extra) { go('/achieve?mode=' + m + '&date=' + ($('adt') ? $('adt').value : date) + (m === 'range' ? '&from=' + ($('afr') ? $('afr').value : from) + '&to=' + ($('ato') ? $('ato').value : to) : '') + (extra || '')); };
+    var row = function (s) {
+      return '<tr><td><b>' + h(s.name) + '</b>' + (s.noTarget ? '<br><span class="tiny" style="color:var(--low)">no target set</span>' : '') + '</td><td class="r">' + inr(s.actual) + '</td><td class="r">' + inr(s.target) + '</td><td class="r">' + (s.target ? tgPill(s.pct) : '') + '</td><td class="r">' + (s.gap < 0 ? '<span style="color:var(--low)">' + inr(s.gap) + '</span>' : '+' + inr(s.gap)) + '</td><td class="r">' + s.bills + '<br><span class="tiny muted">ATV ' + inr(s.atv) + '</span></td>' +
+        '<td class="r tiny">' + s.jcs.map(function (j) { return 'JC' + j.no + ' ' + (j.state === 'upcoming' ? '-' : Math.round(j.pct) + '%'); }).join('<br>') + '</td><td class="r tiny">' + (s.wowDays.length ? '⭐ ' + s.wowDays.length : '') + (s.ly ? '<br>LY ' + (s.ly.growth == null ? '' : (s.ly.growth > 0 ? '+' : '') + s.ly.growth + '%') : '') + '</td></tr>';
+    };
+    $app.innerHTML = '<div class="row-between"><h2>📈 Achievement</h2><a class="btn ghost sm" href="#/targets">🎯 Targets</a></div>' +
+      '<div class="btnrow" style="margin-bottom:8px">' + [['mtd', 'MTD'], ['range', 'Date range'], ['date', 'Specific date']].map(function (x) { return '<button class="sm ' + (x[0] === mode ? 'navy' : '') + '" data-am="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="filters">' + (mode === 'range' ? '<label>From<input type="date" id="afr" value="' + r.from + '"></label><label>To<input type="date" id="ato" value="' + r.to + '"></label>' : '<label>' + (mode === 'mtd' ? 'Up to' : 'Date') + '<input type="date" id="adt" value="' + date + '"></label>') + '<button class="sm primary" id="ago">Show</button></div>' +
+      '<p class="small muted">' + (mode === 'mtd' ? dLabel(r.from) + ' to ' + dLabel(r.to) + ' · target is what was due till the date' : dLabel(r.from) + (r.from !== r.to ? ' to ' + dLabel(r.to) : '')) + ' · ' + r.days + ' day(s)' + (r.note ? ' · ' + h(r.note) : '') + '</p>' +
+      '<div class="kpis four">' + kpi('Achieved', inr(n.actual), n.bills + ' bills') + kpi('Target', inr(n.target)) + kpi('Achievement', n.target ? Math.round(n.pct) + '%' : '-', (n.gap < 0 ? '' : '+') + inr(n.gap)) + kpi('Wow days', n.wowDays, n.lyGrowth == null ? '' : 'vs last year ' + (n.lyGrowth > 0 ? '+' : '') + n.lyGrowth + '%') + '</div>' +
+      '<div class="card tablewrap"><table class="tbl"><tr><th>Store</th><th class="r">Achieved</th><th class="r">Target</th><th class="r">%</th><th class="r">Gap</th><th class="r">Bills</th><th class="r">JC %</th><th class="r">Wow / LY</th></tr>' + r.stores.map(row).join('') +
+      '<tr class="total"><td>Network</td><td class="r">' + inr(n.actual) + '</td><td class="r">' + inr(n.target) + '</td><td class="r">' + (n.target ? tgPill(n.pct) : '') + '</td><td class="r">' + inr(n.gap) + '</td><td class="r">' + n.bills + '<br><span class="tiny muted">ATV ' + inr(n.atv) + '</span></td><td></td><td></td></tr></table></div>' +
+      (mode === 'mtd' ? '<div class="card tablewrap"><b>Month plan</b><table class="tbl"><tr><th>Store</th><th class="r">Month target</th><th class="r">Month %</th><th class="r">Left</th><th class="r">Per day to go (' + (r.stores[0] ? r.stores[0].daysLeft : 0) + ' d)</th></tr>' + r.stores.map(function (s) { return '<tr><td>' + h(s.name) + '</td><td class="r">' + inr(s.monthTarget) + '</td><td class="r">' + (s.monthTarget ? tgPill(s.monthPct) : '') + '</td><td class="r">' + inr(s.left) + '</td><td class="r">' + inr(s.perDay) + '</td></tr>'; }).join('') + '</table></div>' : '') +
+      (r.days <= 62 && r.days > 1 ? r.stores.map(function (s) { var mx = Math.max.apply(null, s.series.map(function (x) { return Math.max(x.target, x.actual || 0); }).concat([1])); return '<details class="card"><summary>' + h(s.name) + ' day by day</summary><div class="tablewrap"><table class="tbl"><tr><th>Date</th><th class="r">Target</th><th class="r">Actual</th><th class="r">%</th><th></th></tr>' + s.series.map(function (x) { return '<tr><td>' + dLabel(x.date) + '</td><td class="r">' + inr(x.target) + '</td><td class="r">' + (x.actual == null ? '' : inr(x.actual)) + '</td><td class="r">' + (x.actual == null || !x.target ? '' : tgPill(x.actual * 100 / x.target)) + '</td><td style="width:35%"><div style="background:#eee;height:8px;border-radius:4px"><div style="height:8px;border-radius:4px;background:var(--navy);width:' + Math.round((x.actual || 0) * 100 / mx) + '%"></div></div></td></tr>'; }).join('') + '</table></div></details>'; }).join('') : '');
+    all('[data-am]').forEach(function (b) { b.onclick = function () { nav(b.getAttribute('data-am')); }; });
+    $('ago').onclick = function () { nav(mode); };
+  });
+}, 'dashboard');
 
 // ---------- Phase 2 placeholders ----------
 function boardCard(b) {
