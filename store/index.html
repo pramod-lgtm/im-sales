@@ -1112,6 +1112,7 @@ function bytesLabel(n) { n = Number(n) || 0; return n > 1048576 ? (n / 1048576).
 
 // --- Excel (.xlsx) and CSV are read in the browser; the server only keeps the cleaned text of each sheet ---
 var XL_LIMIT = { rows: 3000, cols: 30 };
+var XL_BIG = { rows: 250000, cols: 30 }; // bill level sales files (old sales upload): about 1,000 bills a day for 8 months fits
 function xlColNum(ref) { var m = String(ref).match(/^([A-Z]+)/); if (!m) return 0; var n = 0; for (var i = 0; i < m[1].length; i++) n = n * 26 + (m[1].charCodeAt(i) - 64); return n - 1; }
 function xlInflate(u8) {
   if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('This phone browser cannot open Excel files. Use Chrome, or upload the sheet as CSV.'));
@@ -1150,15 +1151,15 @@ function xlDate(v, kind) {
   return kind === 't' ? tm : (Number(v) % 1 ? day + ' ' + tm : day);
 }
 function xlNum(t) { var n = Number(t); return isNaN(n) ? t : String(parseFloat(n.toPrecision(12))); }
-function readXlsx(buf) {
-  var z = xlZip(buf), wb, rels, shared = [], dateXf = [];
+function readXlsx(buf, lim) {
+  lim = lim || XL_LIMIT; var z = xlZip(buf), wb, rels, shared = [], dateXf = [];
   return Promise.all([z.text('xl/workbook.xml'), z.text('xl/_rels/workbook.xml.rels'), z.text('xl/sharedStrings.xml'), z.text('xl/styles.xml')]).then(function (t) {
     if (!t[0]) throw new Error('This is not an Excel workbook (.xlsx).');
     wb = xlXml(t[0]); rels = {}; Array.prototype.forEach.call(xlXml(t[1] || '<r/>').getElementsByTagName('Relationship'), function (r) { rels[r.getAttribute('Id')] = r.getAttribute('Target'); });
     if (t[2]) Array.prototype.forEach.call(xlXml(t[2]).getElementsByTagName('si'), function (si) { var s = ''; Array.prototype.forEach.call(si.getElementsByTagName('t'), function (x) { if (!x.parentNode || x.parentNode.nodeName !== 'rPh') s += x.textContent; }); shared.push(s); });
     if (t[3]) { var st = xlXml(t[3]), codes = {}; Array.prototype.forEach.call(st.getElementsByTagName('numFmt'), function (n) { codes[n.getAttribute('numFmtId')] = n.getAttribute('formatCode'); });
       var cx = st.getElementsByTagName('cellXfs')[0]; if (cx) Array.prototype.forEach.call(cx.getElementsByTagName('xf'), function (x) { var id = Number(x.getAttribute('numFmtId')) || 0; dateXf.push(xlIsDateFmt(id, codes[id])); }); }
-    var sheets = Array.prototype.filter.call(wb.getElementsByTagName('sheet'), function (s) { return !/hidden/i.test(s.getAttribute('state') || ''); });
+    var cut = false, sheets = Array.prototype.filter.call(wb.getElementsByTagName('sheet'), function (s) { return !/hidden/i.test(s.getAttribute('state') || ''); });
     return sheets.reduce(function (p, s) {
       return p.then(function (out) {
         var tg = rels[s.getAttribute('r:id')] || ''; tg = tg.charAt(0) === '/' ? tg.slice(1) : 'xl/' + tg;
@@ -1166,7 +1167,7 @@ function readXlsx(buf) {
           if (!xml) return out; var rows = [];
           Array.prototype.forEach.call(xlXml(xml).getElementsByTagName('c'), function (c) {
             var ref = c.getAttribute('r'), ci = xlColNum(ref), ri = Number((String(ref).match(/(\d+)$/) || [])[1]) - 1, ty = c.getAttribute('t'), vEl = c.getElementsByTagName('v')[0], val = vEl ? vEl.textContent : '';
-            if (isNaN(ri) || ri >= XL_LIMIT.rows || ci >= XL_LIMIT.cols) return;
+            if (isNaN(ri) || ci >= lim.cols) return; if (ri >= lim.rows) { cut = true; return; }
             if (ty === 's') val = shared[Number(val)] || ''; else if (ty === 'inlineStr') { val = ''; Array.prototype.forEach.call(c.getElementsByTagName('t'), function (x) { val += x.textContent; }); }
             else if (ty === 'b') val = val === '1' ? 'Yes' : 'No'; else if (ty === 'str' || ty === 'e') val = val || '';
             else if (val !== '') { var k = dateXf[Number(c.getAttribute('s')) || 0]; val = k === 'p' ? xlNum(Number(val) * 100) + '%' : (k ? xlDate(val, k) : xlNum(val)); }
@@ -1175,15 +1176,15 @@ function readXlsx(buf) {
           rows = Array.prototype.map.call(rows, function (r) { r = r || []; var a = []; for (var j = 0; j < r.length; j++) a.push(r[j] == null ? '' : r[j]); return a; });
           for (var i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
           while (rows.length && rows[rows.length - 1].every(function (c) { return c === ''; })) rows.pop();
-          if (rows.length) out.push({ name: s.getAttribute('name') || 'Sheet', rows: rows });
-          return out;
+          if (rows.length) out.push({ name: s.getAttribute('name') || 'Sheet', rows: rows, truncated: cut });
+          cut = false; return out;
         });
       });
     }, Promise.resolve([]));
   });
 }
-function readCsv(text, name) {
-  text = text.replace(/^\uFEFF/, ''); var first = text.split(/\r?\n/)[0] || '', delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',', rows = [], row = [], cell = '', q = false;
+function readCsv(text, name, lim) {
+  lim = lim || XL_LIMIT;   text = text.replace(/^\uFEFF/, ''); var first = text.split(/\r?\n/)[0] || '', delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',', rows = [], row = [], cell = '', q = false;
   for (var i = 0; i < text.length; i++) {
     var ch = text.charAt(i);
     if (q) { if (ch === '"') { if (text.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
@@ -1192,14 +1193,15 @@ function readCsv(text, name) {
     else cell += ch;
   }
   if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
-  rows = rows.slice(0, XL_LIMIT.rows).map(function (r) { return r.slice(0, XL_LIMIT.cols).map(function (c) { return c.trim(); }); });
+  var cut = rows.slice(lim.rows).some(function (r) { return r.some(function (c) { return String(c).trim(); }); });
+  rows = rows.slice(0, lim.rows).map(function (r) { return r.slice(0, lim.cols).map(function (c) { return c.trim(); }); });
   while (rows.length && rows[rows.length - 1].every(function (c) { return c === ''; })) rows.pop();
-  return rows.length ? [{ name: String(name || 'Sheet').replace(/\.[^.]+$/, '').slice(0, 60), rows: rows }] : [];
+  return rows.length ? [{ name: String(name || 'Sheet').replace(/\.[^.]+$/, '').slice(0, 60), rows: rows, truncated: cut }] : [];
 }
-function readSheetFile(file) {
+function readSheetFile(file, lim) {
   if (/\.xls$/i.test(file.name)) return Promise.reject(new Error('Old .xls cannot be shown as a page. In Excel use Save As > Excel Workbook (.xlsx).'));
-  if (/\.csv$/i.test(file.name)) return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(readCsv(String(r.result), file.name)); }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsText(file); });
-  return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { try { readXlsx(r.result).then(res, rej); } catch (e) { rej(e); } }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsArrayBuffer(file); });
+  if (/\.csv$/i.test(file.name)) return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(readCsv(String(r.result), file.name, lim)); }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsText(file); });
+  return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { try { readXlsx(r.result, lim).then(res, rej); } catch (e) { rej(e); } }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsArrayBuffer(file); });
 }
 
 
@@ -1885,8 +1887,9 @@ function tgOld(month, sid, tab, ov, head) {
   $app.innerHTML = head + '<div class="card stack"><b>Upload old sales data</b><p class="small muted">Excel or CSV of past sales with at least <b>date</b>, <b>store</b> and <b>net sales amount</b>. Bill-level files (one row per bill or item line) are added up per day and store. You see the store mapping and totals first. Uploading the same dates again replaces those days only; nothing else is removed. The Suggestions use this data.</p>' +
     '<div class="btnrow"><button class="sm" id="otpl">⬇ Download template (CSV)</button></div><input type="file" id="of" accept=".xlsx,.csv"><div id="omap" class="small"></div><div id="oprev" class="small"></div></div><div id="ostat"></div>';
   tgWire(month, sid, tab);
-  call('oldSalesStatus', {}).then(function (st) { $('ostat').innerHTML = '<div class="card tablewrap"><b>Old sales loaded</b><table class="tbl"><tr><th>Store</th><th class="r">Days</th><th>From</th><th>To</th></tr>' + st.stores.map(function (s) { return '<tr><td>' + h(s.name) + '</td><td class="r">' + (s.days || '<span class="tiny muted">none</span>') + '</td><td>' + h(s.from) + '</td><td>' + h(s.to) + '</td></tr>'; }).join('') + '</table></div>' +
-    '<details class="card"><summary>Festival dates used to line up last year (edit in the FestivalMap tab of the Sheet)</summary>' + st.festivals.map(function (f) { return '<div class="tiny">' + h(f.date) + ' · ' + h(f.label) + ' (' + f.before + ' before, ' + f.after + ' after)</div>'; }).join('') + '</details>'; });
+  var loadStat = function () { return call('oldSalesStatus', {}).then(function (st) { $('ostat').innerHTML = '<div class="card tablewrap"><b>Old sales loaded</b><table class="tbl"><tr><th>Store</th><th class="r">Days</th><th>From</th><th>To</th></tr>' + st.stores.map(function (s) { return '<tr><td>' + h(s.name) + '</td><td class="r">' + (s.days || '<span class="tiny muted">none</span>') + '</td><td>' + h(s.from) + '</td><td>' + h(s.to) + '</td></tr>'; }).join('') + '</table></div>' +
+    '<details class="card"><summary>Festival dates used to line up last year (edit in the FestivalMap tab of the Sheet)</summary>' + st.festivals.map(function (f) { return '<div class="tiny">' + h(f.date) + ' · ' + h(f.label) + ' (' + f.before + ' before, ' + f.after + ' after)</div>'; }).join('') + '</details>'; }); };
+  loadStat();
   $('otpl').onclick = function () { download('old-sales-template.csv', TG_OLD_TPL); };
   var book = null, sheet = null, cols = {};
   var fields = [['date', 'Date'], ['store', 'Store / location'], ['amount', 'Net sales amount'], ['bill_no', 'Bill number (optional)'], ['bills', 'Bills count (optional)'], ['units', 'Qty / units (optional)']];
@@ -1911,25 +1914,40 @@ function tgOld(month, sid, tab, ov, head) {
   var build = function () {
     var rows = sheet.rows.slice(cols.hr + 1), agg = {}, seen = {}, g = function (r, k) { return cols[k] >= 0 ? r[cols[k]] : ''; };
     rows.forEach(function (r) { var d = g(r, 'date'), st = String(g(r, 'store')).trim(), amt = g(r, 'amount'); if (!d && !st && amt === '') return; if (/total/i.test(String(d) + st)) return; var key = d + '|' + st, x = agg[key] = agg[key] || { date: d, store: st, amount: 0, bills: 0, units: 0, _ok: 0 };
-      x.amount += tgNum(amt); x.units += tgNum(g(r, 'units')); x._ok = x._ok || String(amt).trim() !== ''; var b = String(g(r, 'bill_no')).trim(); if (b) { seen[key + '|' + b] = seen[key + '|' + b] || (x.bills++, 1); } else x.bills += tgNum(g(r, 'bills')); });
+      x.amount += tgNum(amt); if (String(amt).trim() === '') return; x.units += tgNum(g(r, 'units')); x._ok = true; var b = String(g(r, 'bill_no')).trim(); if (b) { seen[key + '|' + b] = seen[key + '|' + b] || (x.bills++, 1); } else x.bills += tgNum(g(r, 'bills')); });
     return Object.keys(agg).map(function (k) { var x = agg[k]; return { date: x.date, store: x.store, amount: x._ok ? Math.round(x.amount * 100) / 100 : '', bills: x.bills, units: x.units }; });
   };
   var map = {};
+  var OLD_BATCH = 1500; // store-days per save call: keeps every Apps Script call far below its 6 minute limit
+  var saveBatches = function (rows) {
+    var by = {}, ds = []; rows.forEach(function (x) { if (!by[x.date]) { by[x.date] = []; ds.push(x.date); } by[x.date].push(x); });
+    var parts = [], cur = []; ds.forEach(function (d) { if (cur.length && cur.length + by[d].length > OLD_BATCH) { parts.push(cur); cur = []; } cur = cur.concat(by[d]); }); if (cur.length) parts.push(cur);
+    var tot = { preview: false, days: 0, total: 0, replaced: 0, bad: 0, errors: [], odd: [], from: '', to: '', texts: [], perStore: [], unmatched: [], stores: [] }, i = 0;
+    var next = function () {
+      if (i >= parts.length) return Promise.resolve(tot);
+      $('oprev').innerHTML = '<div class="card">Saving part ' + (i + 1) + ' of ' + parts.length + '... please keep this page open.</div>';
+      return call('importOldSales', { rows: parts[i], commit: true, map: map, file: book.fname, part: i + 1, parts: parts.length }).then(function (r) {
+        tot.days += r.days; tot.total = Math.round((tot.total + r.total) * 100) / 100; tot.replaced += r.replaced; tot.bad += r.bad;
+        if (r.from && (!tot.from || r.from < tot.from)) tot.from = r.from; if (r.to && r.to > tot.to) tot.to = r.to; tot.texts = r.texts; tot.perStore = r.perStore; tot.stores = r.stores; i++; return next();
+      }).catch(function (e) { e.message = 'Saved ' + i + ' of ' + parts.length + ' parts, then: ' + (e.message || e) + '. Press Save again: dates already saved are simply replaced, nothing doubles.'; throw e; });
+    };
+    return next();
+  };
   var send = function (commit) {
     if (cols.date < 0 || cols.amount < 0) return toast('Pick the date and net sales amount columns', 'err'); var rows = build();
-    call('importOldSales', { rows: rows, commit: commit, map: commit ? map : undefined, file: book.fname }).then(function (r) {
-      r.texts.forEach(function (t) { if (!(t.text in map)) map[t.text] = t.store_id || 0; });
-      $('oprev').innerHTML = (commit ? '<div class="card" style="border-color:var(--good)"><b>Saved ' + r.days + ' store-days</b> (' + r.from + ' to ' + r.to + '), total Rs ' + inr(r.total) + '. ' + (r.replaced ? r.replaced + ' existing day(s) were replaced. ' : '') + 'Suggestions now use this data.</div>' :
-        '<div class="card"><b>' + r.days + ' store-days</b> · ' + r.from + ' to ' + r.to + ' · total Rs ' + inr(r.total) + (r.replaced ? ' · ' + r.replaced + ' existing day(s) will be replaced' : '') + (r.bad ? ' · <span style="color:var(--low)">' + r.bad + ' row(s) skipped: ' + h(r.errors.join('; ')) + '</span>' : '') + (r.odd.length ? '<br>Check these unusual days: ' + h(r.odd.join(', ')) : '') + '</div>' +
+    (commit ? saveBatches(rows) : call('importOldSales', { rows: rows, commit: false, map: map, file: book.fname })).then(function (r) {
+      if (!commit) r.texts.forEach(function (t) { if (!(t.text in map)) map[t.text] = t.store_id || 0; });
+      $('oprev').innerHTML = (commit ? '<div class="card" style="border-color:var(--good)"><b>Saved ' + r.days + ' store-days</b> (' + r.from + ' to ' + r.to + '), total ' + inr(r.total) + '. ' + (r.replaced ? r.replaced + ' existing day(s) were replaced. ' : '') + 'Suggestions now use this data. The table below shows what is loaded per store.</div>' :
+        '<div class="card"><b>' + r.days + ' store-days</b> · ' + r.from + ' to ' + r.to + ' · total ' + inr(r.total) + (r.replaced ? ' · ' + r.replaced + ' existing day(s) will be replaced' : '') + (r.bad ? ' · <span style="color:var(--low)">' + r.bad + ' row(s) skipped: ' + h(r.errors.join('; ')) + '</span>' : '') + (r.odd.length ? '<br>Check these unusual days: ' + h(r.odd.join(', ')) : '') + '</div>' +
         '<div class="tablewrap"><table class="tbl"><tr><th>Store in file</th><th class="r">Rows</th><th class="r">Amount</th><th>Maps to</th></tr>' + r.texts.map(function (t) { return '<tr><td>' + h(t.text || '(blank)') + '</td><td class="r">' + t.rows + '</td><td class="r">' + inr(t.amount) + '</td><td><select data-om="' + h(t.text) + '">' + opt(r.stores.map(function (s) { return [s.id, s.name]; }), map[t.text] || '', 'Skip these rows') + '</select></td></tr>'; }).join('') + '</table></div>' +
         '<div class="tablewrap"><table class="tbl"><tr><th>Store</th><th class="r">Days</th><th>From</th><th>To</th><th class="r">Sales</th></tr>' + r.perStore.map(function (p) { return '<tr><td>' + h(p.name) + '</td><td class="r">' + p.days + '</td><td>' + p.from + '</td><td>' + p.to + '</td><td class="r">' + inr(p.sales) + '</td></tr>'; }).join('') + '</table></div>' +
         (r.unmatched.length ? '<p class="small" style="color:var(--low)">Not mapped yet: ' + h(r.unmatched.join(', ')) + '. Pick a store above and press Preview again, or they are skipped.</p>' : '') + '<div class="btnrow"><button class="sm" id="oref">Preview again with my mapping</button><button class="primary" id="osave"' + (r.days ? '' : ' disabled') + '>Save ' + r.days + ' store-days</button></div>');
       all('[data-om]').forEach(function (s) { s.onchange = function () { map[s.getAttribute('data-om')] = s.value === '' ? 0 : Number(s.value); }; });
       if ($('oref')) $('oref').onclick = function () { send(false); }; if ($('osave')) $('osave').onclick = function () { if (confirm('Save ' + r.days + ' store-days into last year sales? Same dates already there are replaced.')) send(true); };
-      if (commit) route();
-    }).catch(fail);
+      if (commit) loadStat().catch(fail);
+    }).catch(function (e) { if (commit) $('oprev').innerHTML = '<div class="card" style="border-color:var(--low)">' + h(e && e.message || String(e)) + '</div>'; fail(e); });
   };
-  $('of').onchange = function () { var f = this.files[0]; if (!f) return; $('omap').textContent = 'Reading...'; readSheetFile(f).then(function (sh) { if (!sh.length) throw new Error('No rows found in the file.'); book = sh; book.fname = f.name; sheet = sh.slice().sort(function (a, b) { return b.rows.length - a.rows.length; })[0]; guess(); draw(); map = {}; $('oprev').innerHTML = ''; }).catch(fail); };
+  $('of').onchange = function () { var f = this.files[0]; if (!f) return; $('omap').textContent = 'Reading...'; readSheetFile(f, XL_BIG).then(function (sh) { if (!sh.length) throw new Error('No rows found in the file.'); book = sh; book.fname = f.name; sheet = sh.slice().sort(function (a, b) { return b.rows.length - a.rows.length; })[0]; guess(); draw(); map = {}; $('oprev').innerHTML = ''; if (sheet.truncated) $('oprev').innerHTML = '<div class="card" style="border-color:var(--low)"><b>This file is too long.</b> Only the first ' + (XL_BIG.rows).toLocaleString('en-IN') + ' rows were read, the rest is ignored. Split it by date (for example one file per half year) and upload each part.</div>'; else $('omap').insertAdjacentHTML('afterbegin', '<div class="tiny muted">' + (sheet.rows.length - 1).toLocaleString('en-IN') + ' rows read.</div>'); }).catch(fail); };
 }
 
 // ---- Suggestions (last year festival aligned, fallback previous month) and the suggestion Excel
