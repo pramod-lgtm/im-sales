@@ -2,6 +2,7 @@
 <html lang="en-IN">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#3d3f94"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="IM Store">
@@ -195,6 +196,37 @@ input[type=checkbox]{width:auto}video.live{width:100%;border-radius:12px;backgro
 .sheetwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:6px}.sheettbl{border-collapse:collapse;font-size:.84rem;min-width:100%}.sheettbl th{position:sticky;top:0;background:#faf8fb;text-align:left;padding:6px 8px;border-bottom:2px solid var(--line);white-space:nowrap;font-size:.76rem;text-transform:none;color:var(--ink)}.sheettbl td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .shq{margin:6px 0}
 .photos{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}.photos .thumb{max-width:96px;max-height:96px;object-fit:cover}
+
+/* Achievement screen: look of the INTIMISSI Retail Hub */
+.ach{--ach-gold:#c5a880;--ach-ok:#10b981;--ach-bad:#ef4444;--ach-warn:#f59e0b;--ach-line:#e2e8f0;--ach-mut:#64748b;font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;color:#0f172a;margin:-12px -12px 0}
+.ach *{font-family:inherit}
+.ach-h{background:#000;color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)}
+.ach-brand{display:flex;align-items:center;gap:16px}.ach-brand img{height:35px;object-fit:contain}.ach-word{font-weight:700;font-size:22px;letter-spacing:1px}
+.ach-bt{font-size:14px;letter-spacing:2px;text-transform:uppercase;font-weight:500;color:var(--ach-gold);border-left:1px solid #333;padding-left:16px}
+.ach-nav{display:flex;gap:8px;overflow-x:auto;max-width:100%}.ach-nav button,.ach-nav a{background:transparent;border:0;color:#a1a1aa;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;min-height:0;width:auto}
+.ach-nav button:hover,.ach-nav a:hover{color:#fff;background:rgba(255,255,255,.1)}.ach-nav button.on{background:#fff;color:#000}
+.ach-main{padding:24px;max-width:1400px;margin:0 auto;background:#f8f9fa;animation:achIn .3s ease}@keyframes achIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.ach-ctl{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;background:#f8f9fa;padding:12px 16px;border-radius:8px;border:1px solid var(--ach-line);margin-bottom:24px}
+.ach-ctl label{font-size:12px;font-weight:600;color:var(--ach-mut);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.ach-ctl input{background:#fff;border:1px solid var(--ach-line);border-radius:6px;padding:10px 14px;font-size:14px;width:auto;min-height:0}
+.ach-ctl p{flex:1;min-width:200px;font-size:12px;color:var(--ach-mut);margin:0}
+.ach-btn{background:#000;color:#fff;border:0;padding:10px 20px;border-radius:6px;font-weight:500;font-size:14px;cursor:pointer;width:auto;min-height:0}.ach-btn:hover{background:#333}
+.ach-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.ach-kpi{background:#fff;padding:20px;border-radius:12px;border:1px solid var(--ach-line);border-left:4px solid #000}.ach-kpi .t{font-size:12px;color:var(--ach-mut);text-transform:uppercase;font-weight:600;margin-bottom:8px}.ach-kpi .v{font-size:24px;font-weight:700;color:#000}.ach-kpi small{display:block;color:var(--ach-mut);font-size:11px;margin-top:4px}
+.ach-card{background:#fff;border:1px solid var(--ach-line);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,.05)}.ach-ct{font-size:18px;font-weight:600;letter-spacing:-.5px;margin-bottom:20px}.ach-ct small{font-size:12px;font-weight:500;color:var(--ach-mut);margin-left:8px}
+.ach-tc{overflow-x:auto;-webkit-overflow-scrolling:touch}.ach-t{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
+.ach-t th{background:#f8fafc;padding:14px 16px;color:var(--ach-mut);font-weight:600;font-size:12px;text-transform:uppercase;border-bottom:1px solid var(--ach-line);white-space:nowrap}
+.ach-t td{padding:14px 16px;border-bottom:1px solid var(--ach-line);white-space:nowrap;vertical-align:top}.ach-t tr:hover td{background:#f8fafc}.ach-t td small,.ach-sc small{display:block;color:var(--ach-mut);font-size:11px;font-weight:400}
+.ach-total td{font-weight:700;background:#f8fafc;border-top:2px solid var(--ach-line)}
+.ach-badge{display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase}.ach-badge.ok{background:#d1fae5;color:#065f46}.ach-badge.warn{background:#fef3c7;color:#92400e}.ach-badge.bad{background:#fee2e2;color:#991b1b}
+.ach-bar{background:var(--ach-line);height:6px;border-radius:3px;overflow:hidden;margin-top:8px;width:100%;min-width:100px}.ach-fill{height:100%;background:var(--ach-gold);transition:width .3s}.ach-fill.ok{background:var(--ach-ok)}.ach-fill.low{background:#d6a0a0}
+.neg{color:#991b1b}.pos{color:#065f46}.ach-mut{color:var(--ach-mut)}
+.ach-d{border-top:1px solid var(--ach-line);padding:10px 0}.ach-d summary{font-weight:600;cursor:pointer;font-size:14px}
+.ach-cards{display:none}
+@media (max-width:768px){.ach{margin:-12px -10px 0}.ach-h{padding:14px 16px;flex-direction:column;align-items:flex-start}.ach-nav{width:100%;padding-bottom:4px}.ach-main{padding:16px}.ach-card{padding:16px}
+ .ach-wide{display:none}.ach-cards{display:block}.ach-ctl{align-items:stretch}.ach-ctl>div{flex:1;min-width:130px}.ach-ctl input{width:100%}.ach-btn{width:100%}.ach-kpis{grid-template-columns:1fr 1fr;gap:10px}.ach-kpi{padding:14px}.ach-kpi .v{font-size:19px}
+ .ach-sc{border:1px solid var(--ach-line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fff}.ach-sc-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.ach-sc-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;font-size:13px}.ach-sc-g b{display:block}
+ .ach-sc-j{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;font-size:12px}.ach-sc-j .ach-bar{min-width:0}.ach-sc-f{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:12px;color:var(--ach-mut)}}
 </style>
 </head>
 <body class="anon">
@@ -1924,25 +1956,45 @@ function tgSuggest(month, sid, tab, ov, head) {
   });
 }
 
-// ---------- Achievement dashboard (owner / auditor): MTD, date range, one date ----------
+// ---------- Achievement dashboard (owner / auditor): MTD, date range, one date. Styled like the INTIMISSI Retail Hub. ----------
+function achBar(p, state) { var w = Math.max(0, Math.min(100, p || 0)); return '<div class="ach-bar"><div class="ach-fill' + (p >= 100 ? ' ok' : p < 80 ? ' low' : '') + '" style="width:' + w + '%"></div></div>'; }
+function achBadge(p) { return '<span class="ach-badge ' + (p >= 100 ? 'ok' : p >= 80 ? 'warn' : 'bad') + '">' + Math.round(p) + '%</span>'; }
+function achGap(g) { return '<b class="' + (g < 0 ? 'neg' : 'pos') + '">' + (g < 0 ? '-' : '+') + inr(Math.abs(g)) + '</b>'; }
+function achJc(j) { return j.state === 'upcoming' ? '<span class="ach-mut">-</span>' : '<b>' + Math.round(j.pct) + '%</b>' + achBar(j.pct) + '<small>' + inr(j.actual) + ' / ' + inr(j.target) + '</small>'; }
 on(/^\/achieve$/, function () {
   var mode = q('mode') || 'mtd', date = q('date') || S.today, from = q('from') || date.slice(0, 8) + '01', to = q('to') || date, d = { mode: mode, date: date };
   if (mode === 'range') { d.from = from; d.to = to; }
   return call('achievement', d).then(function (r) {
-    var n = r.net, nav = function (m, extra) { go('/achieve?mode=' + m + '&date=' + ($('adt') ? $('adt').value : date) + (m === 'range' ? '&from=' + ($('afr') ? $('afr').value : from) + '&to=' + ($('ato') ? $('ato').value : to) : '') + (extra || '')); };
-    var row = function (s) {
-      return '<tr><td><b>' + h(s.name) + '</b>' + (s.noTarget ? '<br><span class="tiny" style="color:var(--low)">no target set</span>' : '') + '</td><td class="r">' + inr(s.actual) + '</td><td class="r">' + inr(s.target) + '</td><td class="r">' + (s.target ? tgPill(s.pct) : '') + '</td><td class="r">' + (s.gap < 0 ? '<span style="color:var(--low)">' + inr(s.gap) + '</span>' : '+' + inr(s.gap)) + '</td><td class="r">' + s.bills + '<br><span class="tiny muted">ATV ' + inr(s.atv) + '</span></td>' +
-        '<td class="r tiny">' + s.jcs.map(function (j) { return 'JC' + j.no + ' ' + (j.state === 'upcoming' ? '-' : Math.round(j.pct) + '%'); }).join('<br>') + '</td><td class="r tiny">' + (s.wowDays.length ? '⭐ ' + s.wowDays.length : '') + (s.ly ? '<br>LY ' + (s.ly.growth == null ? '' : (s.ly.growth > 0 ? '+' : '') + s.ly.growth + '%') : '') + '</td></tr>';
-    };
-    $app.innerHTML = '<div class="row-between"><h2>📈 Achievement</h2><a class="btn ghost sm" href="#/targets">🎯 Targets</a></div>' +
-      '<div class="btnrow" style="margin-bottom:8px">' + [['mtd', 'MTD'], ['range', 'Date range'], ['date', 'Specific date']].map(function (x) { return '<button class="sm ' + (x[0] === mode ? 'navy' : '') + '" data-am="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-      '<div class="filters">' + (mode === 'range' ? '<label>From<input type="date" id="afr" value="' + r.from + '"></label><label>To<input type="date" id="ato" value="' + r.to + '"></label>' : '<label>' + (mode === 'mtd' ? 'Up to' : 'Date') + '<input type="date" id="adt" value="' + date + '"></label>') + '<button class="sm primary" id="ago">Show</button></div>' +
-      '<p class="small muted">' + (mode === 'mtd' ? dLabel(r.from) + ' to ' + dLabel(r.to) + ' · target is what was due till the date' : dLabel(r.from) + (r.from !== r.to ? ' to ' + dLabel(r.to) : '')) + ' · ' + r.days + ' day(s)' + (r.note ? ' · ' + h(r.note) : '') + '</p>' +
-      '<div class="kpis four">' + kpi('Achieved', inr(n.actual), n.bills + ' bills') + kpi('Target', inr(n.target)) + kpi('Achievement', n.target ? Math.round(n.pct) + '%' : '-', (n.gap < 0 ? '' : '+') + inr(n.gap)) + kpi('Wow days', n.wowDays, n.lyGrowth == null ? '' : 'vs last year ' + (n.lyGrowth > 0 ? '+' : '') + n.lyGrowth + '%') + '</div>' +
-      '<div class="card tablewrap"><table class="tbl"><tr><th>Store</th><th class="r">Achieved</th><th class="r">Target</th><th class="r">%</th><th class="r">Gap</th><th class="r">Bills</th><th class="r">JC %</th><th class="r">Wow / LY</th></tr>' + r.stores.map(row).join('') +
-      '<tr class="total"><td>Network</td><td class="r">' + inr(n.actual) + '</td><td class="r">' + inr(n.target) + '</td><td class="r">' + (n.target ? tgPill(n.pct) : '') + '</td><td class="r">' + inr(n.gap) + '</td><td class="r">' + n.bills + '<br><span class="tiny muted">ATV ' + inr(n.atv) + '</span></td><td></td><td></td></tr></table></div>' +
-      (mode === 'mtd' ? '<div class="card tablewrap"><b>Month plan</b><table class="tbl"><tr><th>Store</th><th class="r">Month target</th><th class="r">Month %</th><th class="r">Left</th><th class="r">Per day to go (' + (r.stores[0] ? r.stores[0].daysLeft : 0) + ' d)</th></tr>' + r.stores.map(function (s) { return '<tr><td>' + h(s.name) + '</td><td class="r">' + inr(s.monthTarget) + '</td><td class="r">' + (s.monthTarget ? tgPill(s.monthPct) : '') + '</td><td class="r">' + inr(s.left) + '</td><td class="r">' + inr(s.perDay) + '</td></tr>'; }).join('') + '</table></div>' : '') +
-      (r.days <= 62 && r.days > 1 ? r.stores.map(function (s) { var mx = Math.max.apply(null, s.series.map(function (x) { return Math.max(x.target, x.actual || 0); }).concat([1])); return '<details class="card"><summary>' + h(s.name) + ' day by day</summary><div class="tablewrap"><table class="tbl"><tr><th>Date</th><th class="r">Target</th><th class="r">Actual</th><th class="r">%</th><th></th></tr>' + s.series.map(function (x) { return '<tr><td>' + dLabel(x.date) + '</td><td class="r">' + inr(x.target) + '</td><td class="r">' + (x.actual == null ? '' : inr(x.actual)) + '</td><td class="r">' + (x.actual == null || !x.target ? '' : tgPill(x.actual * 100 / x.target)) + '</td><td style="width:35%"><div style="background:#eee;height:8px;border-radius:4px"><div style="height:8px;border-radius:4px;background:var(--navy);width:' + Math.round((x.actual || 0) * 100 / mx) + '%"></div></div></td></tr>'; }).join('') + '</table></div></details>'; }).join('') : '');
+    var n = r.net, nav = function (m) { go('/achieve?mode=' + m + '&date=' + ($('adt') ? $('adt').value : date) + (m === 'range' ? '&from=' + ($('afr') ? $('afr').value : from) + '&to=' + ($('ato') ? $('ato').value : to) : '')); };
+    var period = mode === 'mtd' ? dLabel(r.from) + ' to ' + dLabel(r.to) + ' · target is what was due till the date' : dLabel(r.from) + (r.from !== r.to ? ' to ' + dLabel(r.to) : '');
+    var pc = n.target ? n.pct : 0, kc = pc >= 100 ? 'var(--ach-ok)' : pc >= 80 ? 'var(--ach-warn)' : 'var(--ach-bad)';
+    var kpis = '<div class="ach-kpis">' +
+      '<div class="ach-kpi" style="border-left-color:#000"><div class="t">Network Target</div><div class="v">' + inr(n.target) + '</div></div>' +
+      '<div class="ach-kpi" style="border-left-color:var(--ach-gold)"><div class="t">Network Achieved</div><div class="v">' + inr(n.actual) + '</div><small>' + n.bills + ' bills · ATV ' + inr(n.atv) + '</small></div>' +
+      '<div class="ach-kpi" style="border-left-color:' + kc + '"><div class="t">Overall Achievement</div><div class="v">' + (n.target ? Math.round(pc) + '%' : '-') + '</div>' + achBar(pc) + '</div>' +
+      '<div class="ach-kpi" style="border-left-color:' + (n.gap < 0 ? 'var(--ach-bad)' : 'var(--ach-ok)') + '"><div class="t">Run-Rate (+/-)</div><div class="v">' + achGap(n.gap) + '</div></div>' +
+      '<div class="ach-kpi" style="border-left-color:var(--ach-gold)"><div class="t">Wow Days</div><div class="v">' + n.wowDays + '</div><small>' + (n.lyGrowth == null ? 'no last year data' : 'vs last year ' + (n.lyGrowth > 0 ? '+' : '') + n.lyGrowth + '%') + '</small></div></div>';
+    var jcHead = [1, 2, 3].map(function (k) { var j = r.stores[0] && r.stores[0].jcs[k - 1]; return '<th>JC ' + k + (j ? ' (' + Number(j.start.slice(8)) + '-' + Number(j.end.slice(8)) + ')' : '') + '</th>'; }).join('');
+    var rows = r.stores.map(function (s) {
+      return '<tr><td><b>' + h(s.name) + '</b>' + (s.noTarget ? '<br><small class="neg">no target set</small>' : '') + '</td><td>' + inr(s.target) + '</td><td>' + inr(s.actual) + '<br><small>' + s.bills + ' bills · ATV ' + inr(s.atv) + '</small></td>' +
+        '<td class="ach-pc">' + (s.target ? achBadge(s.pct) + achBar(s.pct) : '-') + '</td>' + [0, 1, 2].map(function (i) { return '<td class="ach-jc">' + (s.jcs[i] ? achJc(s.jcs[i]) : '') + '</td>'; }).join('') +
+        '<td>' + achGap(s.gap) + '<br><small>' + (s.daysLeft ? inr(s.perDay) + '/day for ' + s.daysLeft + ' d' : 'month over') + '</small></td><td>' + (s.wowDays.length ? '⭐ ' + s.wowDays.length : '<span class="ach-mut">-</span>') + (s.ly ? '<br><small>LY ' + (s.ly.growth == null ? '' : (s.ly.growth > 0 ? '+' : '') + s.ly.growth + '%') + '</small>' : '') + '</td></tr>';
+    }).join('');
+    var tot = '<tr class="ach-total"><td>Network</td><td>' + inr(n.target) + '</td><td>' + inr(n.actual) + '</td><td class="ach-pc">' + (n.target ? achBadge(n.pct) : '') + '</td><td colspan="3"></td><td>' + achGap(n.gap) + '</td><td>' + n.wowDays + '</td></tr>';
+    var cards = r.stores.map(function (s) {
+      return '<div class="ach-sc"><div class="ach-sc-h"><b>' + h(s.name) + '</b>' + (s.target ? achBadge(s.pct) : '<small class="neg">no target</small>') + '</div>' + (s.target ? achBar(s.pct) : '') +
+        '<div class="ach-sc-g"><div><small>Target</small><b>' + inr(s.target) + '</b></div><div><small>Achieved</small><b>' + inr(s.actual) + '</b></div><div><small>Run-rate</small>' + achGap(s.gap) + '</div></div>' +
+        '<div class="ach-sc-j">' + [0, 1, 2].map(function (i) { var j = s.jcs[i]; return '<div><small>JC ' + (i + 1) + (j ? ' ' + Number(j.start.slice(8)) + '-' + Number(j.end.slice(8)) : '') + '</small>' + (j ? achJc(j) : '') + '</div>'; }).join('') + '</div>' +
+        '<div class="ach-sc-f"><span>' + s.bills + ' bills · ATV ' + inr(s.atv) + '</span><span>' + (s.daysLeft ? 'Need ' + inr(s.perDay) + '/day · ' + s.daysLeft + ' d left' : 'Month over') + '</span>' + (s.wowDays.length ? '<span>⭐ ' + s.wowDays.length + ' Wow day(s)</span>' : '') + (s.ly && s.ly.growth != null ? '<span>LY ' + (s.ly.growth > 0 ? '+' : '') + s.ly.growth + '%</span>' : '') + '</div></div>';
+    }).join('');
+    var plan = mode === 'mtd' ? '<div class="ach-card"><div class="ach-ct">Month Plan <small>' + (r.stores[0] ? r.stores[0].daysLeft : 0) + ' days left</small></div><div class="ach-tc"><table class="ach-t"><thead><tr><th>Store</th><th>Month target</th><th>Month %</th><th>Left</th><th>Needed per day</th></tr></thead><tbody>' +
+      r.stores.map(function (s) { return '<tr><td><b>' + h(s.name) + '</b></td><td>' + inr(s.monthTarget) + '</td><td class="ach-pc">' + (s.monthTarget ? achBadge(s.monthPct) + achBar(s.monthPct) : '-') + '</td><td>' + inr(s.left) + '</td><td>' + inr(s.perDay) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' : '';
+    var days = r.days <= 62 && r.days > 1 ? '<div class="ach-card"><div class="ach-ct">Day by day</div>' + r.stores.map(function (s) { var mx = Math.max.apply(null, s.series.map(function (x) { return Math.max(x.target, x.actual || 0); }).concat([1])); return '<details class="ach-d"><summary>' + h(s.name) + '</summary><div class="ach-tc"><table class="ach-t"><thead><tr><th>Date</th><th>Target</th><th>Actual</th><th>%</th><th></th></tr></thead><tbody>' + s.series.map(function (x) { var p = x.actual == null || !x.target ? null : x.actual * 100 / x.target; return '<tr><td>' + dLabel(x.date) + '</td><td>' + inr(x.target) + '</td><td>' + (x.actual == null ? '' : inr(x.actual)) + '</td><td>' + (p == null ? '' : achBadge(p)) + '</td><td class="ach-pc">' + (x.actual == null ? '' : achBar(x.actual * 100 / mx)) + '</td></tr>'; }).join('') + '</tbody></table></div></details>'; }).join('') + '</div>' : '';
+    $app.innerHTML = '<div class="ach">' +
+      '<header class="ach-h"><div class="ach-brand"><img src="https://drive.google.com/uc?export=view&id=1T0VxZzRS-0r6fnr7jw46AKUIpxejrK6x" alt="INTIMISSI" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'"><span class="ach-word" style="display:none">INTIMISSI</span><div class="ach-bt">Retail Tracker</div></div>' +
+      '<nav class="ach-nav">' + [['mtd', 'MTD'], ['range', 'Date range'], ['date', 'Specific date']].map(function (x) { return '<button class="' + (x[0] === mode ? 'on' : '') + '" data-am="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '<a href="#/targets">Targets</a></nav></header>' +
+      '<main class="ach-main"><div class="ach-ctl">' + (mode === 'range' ? '<div><label>From</label><input type="date" id="afr" value="' + r.from + '"></div><div><label>To</label><input type="date" id="ato" value="' + r.to + '"></div>' : '<div><label>' + (mode === 'mtd' ? 'Up to' : 'Date') + '</label><input type="date" id="adt" value="' + date + '"></div>') + '<button class="ach-btn" id="ago">Show</button><p>' + period + ' · ' + r.days + ' day(s)' + (r.note ? ' · ' + h(r.note) : '') + '</p></div>' +
+      kpis + '<div class="ach-card"><div class="ach-ct">Store Level Performance</div><div class="ach-tc ach-wide"><table class="ach-t"><thead><tr><th>Store</th><th>Target</th><th>' + (mode === 'mtd' ? 'MTD Achieved' : 'Achieved') + '</th><th>Achievement %</th>' + jcHead + '<th>Run-Rate (+/-)</th><th>Wow / LY</th></tr></thead><tbody>' + rows + tot + '</tbody></table></div><div class="ach-cards">' + cards + '</div></div>' + plan + days + '</main></div>';
     all('[data-am]').forEach(function (b) { b.onclick = function () { nav(b.getAttribute('data-am')); }; });
     $('ago').onclick = function () { nav(mode); };
   });
