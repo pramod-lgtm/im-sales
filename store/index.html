@@ -1637,18 +1637,45 @@ function waCard(r) {
     '<pre class="wa" id="waText">' + h(r.whatsapp) + '</pre><div class="btnrow"><button class="navy" id="cp">Copy</button><a class="btn primary" id="waOpen" target="_blank" rel="noopener" href="' + waLink('', r.whatsapp) + '">Open WhatsApp</a></div>' +
     (r.whatsappOwner ? '<p class="tiny muted">Owner version opens your own WhatsApp (owner_whatsapp in Settings). Team version has no rupees and is safe to forward.</p>' : '') + '</div>';
 }
+/** Short rupees for cards: 2.1L, 85K, 1.2Cr. */
+function inrS(v) { v = Math.round(Number(v) || 0); var a = Math.abs(v), f = function (x) { return x.toFixed(x >= 10 ? 0 : 1).replace(/\.0$/, ''); }; return (v < 0 ? '-' : '') + '₹' + (a >= 1e7 ? f(a / 1e7) + 'Cr' : a >= 1e5 ? f(a / 1e5) + 'L' : a >= 1e3 ? f(a / 1e3) + 'K' : a); }
+/** Dashboard store cards: every finished JC of the month plus the running one (target vs achieved), and the day pill falls back to the latest day that has sales. */
+function dashJcFill(date, has, nav) {
+  var money = S.user && (S.user.role === 'owner' || S.user.role === 'auditor'), live = function () { return nav === NAV; };
+  var dayPill = function (stores, day, val) { // val(store) -> { a, t }
+    var A = 0, T = 0; stores.forEach(function (s) { var v = val(s), el = $('dp' + s.id); A += v.a; T += v.t; if (!el) return; var p = pct(v.a, v.t); el.className = 'pill ' + cls(p); el.textContent = dLabel(day) + ' ' + (p || 0) + '%'; el.title = 'Latest day with imported sales'; });
+    var k = $('dks'); if (k) k.innerHTML = kpi('Sales ' + dLabel(day) + ' (latest import)', money ? inr(A) : (pct(A, T) || 0) + '%', (pct(A, T) || 0) + '% of ' + (money ? inr(T) : 'target') + ' · ' + dLabel(date) + ' not imported yet');
+  };
+  var noData = function () { all('[id^="dp"]').forEach(function (el) { if (el.textContent === '…') el.textContent = 'no sales'; }); };
+  call('achievement', { mode: 'mtd', date: date }).then(function (r) {
+    if (!live()) return;
+    (r.stores || []).forEach(function (s) {
+      var el = $('dj' + s.id); if (!el) return;
+      var js = (s.jcs || []).filter(function (j) { return j.state !== 'upcoming'; });
+      if (js.length) el.innerHTML = js.map(function (j) { return '<b class="' + (j.pct >= 100 ? 'good-t' : j.pct < 75 ? 'low-t' : '') + '">' + h(String(j.name).split(' ')[0]) + '</b> ' + (money ? inrS(j.actual) + ' / ' + inrS(j.target) + ' (' + Math.round(j.pct) + '%)' : Math.round(j.pct) + '%'); }).join(' · ');
+    });
+    if (has) return;
+    var last = ''; (r.stores || []).forEach(function (s) { (s.series || []).forEach(function (x) { if (x.date <= date && x.actual > 0 && x.date > last) last = x.date; }); });
+    if (last) {
+      (r.stores || []).forEach(function (s) { var A = 0, T = 0, el = $('dm' + s.id); (s.series || []).forEach(function (y) { if (y.date <= last) { A += y.actual || 0; T += y.target || 0; } }); if (el && T) el.textContent = 'MTD ' + (pct(A, T) || 0) + '% of target due till ' + dLabel(last); }); // the not-yet-imported day is left out of the due target
+      return dayPill(r.stores, last, function (s) { var x = (s.series || []).filter(function (y) { return y.date === last; })[0] || {}; return { a: x.actual || 0, t: x.target || 0 }; });
+    }
+    var y = new Date(date + 'T12:00:00Z'); y.setUTCDate(y.getUTCDate() - 1); y = y.toISOString().slice(0, 10); // 1st of the month: the latest import is last month's last day
+    return call('achievement', { mode: 'date', date: y }).then(function (q2) { if (!live()) return; if ((q2.net || {}).actual > 0) dayPill(q2.stores, y, function (s) { return { a: s.actual, t: s.target }; }); else noData(); });
+  }).catch(function () { if (live()) noData(); });
+}
 on(/^\/dashboard$/, function () {
   var date = q('date') || S.today;
   var myNav = NAV, boardP = call('awardsBoard').catch(function () { return null; });
   return call('dashboard', { date: date }).then(function (r) {
-    var t = r.tot;
+    var t = r.tot, has = t.sales > 0; // sales come from the next-day Rancelab import, so today is usually still empty
     $app.innerHTML = '<div class="row-between"><h2>📊 Dashboard</h2><input type="date" id="dd" value="' + date + '" style="width:auto"></div>' + (can('attendance_admin_view') ? '<div id="attban"></div>' : '') +
       '<div id="board"></div>' +
-      '<div class="kpis">' + kpi('Sales ' + dLabel(date), inr(t.sales), (pct(t.sales, t.target) || 0) + '% of ' + inr(t.target)) + kpi('Opened on time', t.onTime + ' / ' + (r.stores || []).length) + kpi('Staff present', t.present + ' / ' + t.staff) + kpi('Untagged / online', inr(t.untagged) + ' / ' + inr(t.online)) + '</div>' +
+      '<div class="kpis">' + '<span id="dks">' + kpi('Sales ' + dLabel(date), inr(t.sales), has ? (pct(t.sales, t.target) || 0) + '% of ' + inr(t.target) : 'no sales imported yet') + '</span>' + kpi('Opened on time', t.onTime + ' / ' + (r.stores || []).length) + kpi('Staff present', t.present + ' / ' + t.staff) + kpi('Untagged / online', inr(t.untagged) + ' / ' + inr(t.online)) + '</div>' +
       (r.stores || []).map(function (s) {
         var bad = s.lateOpen || !s.openedAt || (s.recon && s.recon.any_over) || s.outside, p = s.perf;
-        return '<a href="#" data-go="/store-day?store=' + s.id + '&date=' + date + '" class="card storecard ' + (bad ? 'bad' : 'ok') + '" style="display:block;text-decoration:none;color:inherit"><div class="row-between"><b>' + (s.rank ? '#' + s.rank + ' ' : '') + h(s.name) + '</b><span class="pill ' + cls(p.today.p) + '">' + (p.today.p || 0) + '%</span></div>' +
-          '<p class="small" style="margin:4px 0">Mgr ' + h(s.manager || '-') + ' · JC ' + (p.jc.p || 0) + '% · MTD ' + (p.mtd.pExp || 0) + '% of target due</p><div class="statusrow">' +
+        return '<a href="#" data-go="/store-day?store=' + s.id + '&date=' + date + '" class="card storecard ' + (bad ? 'bad' : 'ok') + '" style="display:block;text-decoration:none;color:inherit"><div class="row-between"><b>' + (s.rank ? '#' + s.rank + ' ' : '') + h(s.name) + '</b><span id="dp' + s.id + '" class="pill ' + (has ? cls(p.today.p) : 'none') + '">' + (has ? dLabel(date) + ' ' + (p.today.p || 0) + '%' : '…') + '</span></div>' +
+          '<p class="small" style="margin:4px 0">Mgr ' + h(s.manager || '-') + ' · <span id="dj' + s.id + '">' + h(String(p.jc.name || 'JC').split(' ')[0]) + ' ' + (p.jc.p || 0) + '%</span> · <span id="dm' + s.id + '">MTD ' + (p.mtd.pExp || 0) + '% of target due</span></p><div class="statusrow">' +
           '<span class="tag ' + (s.openedAt ? (s.lateOpen ? 'off' : 'ok') : 'off') + '">' + (s.openedAt ? (s.lateOpen ? 'Late ' : 'Open ') + timeOnly(s.openedAt) : 'Not opened') + '</span>' +
           '<span class="tag ' + (s.present >= Math.min(2, s.staff) ? 'ok' : 'off') + '">👥 ' + s.present + '/' + s.staff + (s.off ? ' · ' + s.off + ' off' : '') + (s.outside ? ' (' + s.outside + ' far)' : '') + '</span><span class="tag ' + (s.photosMissing ? 'new' : 'ok') + '">🖼️ ' + (s.photosTotal - s.photosMissing) + '/' + s.photosTotal + (s.vmDue === false && s.vmDate ? ' · ' + dWd(s.vmDate) : '') + '</span>' +
           '<span class="tag ' + (s.recon ? (s.recon.any_over ? 'off' : 'ok') : '') + '">💵 ' + (s.recon ? (s.recon.today ? '' : dLabel(s.recon.date) + ' ') + inr(s.recon.var_total) : 'no tally') + '</span>' + (s.wow.length ? '<span class="tag ok">🎉 ' + s.wow.join(', ') + '</span>' : '') + (s.manualToday ? '<span class="tag new">manual sales</span>' : '') + '</div></a>';
@@ -1657,7 +1684,7 @@ on(/^\/dashboard$/, function () {
       ((r.topLost || []).length ? '<div class="card"><h3>Top lost sales (7 days)</h3><ul class="list">' + (r.topLost || []).map(function (x) { return '<li><span>' + h(x.key) + '</span><b>' + x.n + '</b></li>'; }).join('') + '</ul></div>' : '') +
       waCard(r) +
       (can('admin') ? '<div class="card"><h3>Downloads</h3><div class="btnrow">' + ['attendance', 'weekoff', 'sales', 'recon', 'lost', 'incentives'].map(function (k) { return '<button class="sm" data-csv="' + k + '">' + k + ' CSV</button>'; }).join('') + '<button class="sm navy" id="xs">Export all to a new Sheet</button></div></div>' : '');
-    if ($('attban')) call('attInbox', {}).then(function (x) { var el = $('attban'); if (el && myNav === NAV && x.counts.items + x.counts.regs) el.innerHTML = '<a href="#" data-go="/att" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>✅ ' + (x.counts.items + x.counts.regs) + ' attendance items waiting for approval</b> <span class="muted">›</span></a>'; }).catch(function () {}); fillBoard(boardP, myNav);
+    if ($('attban')) call('attInbox', {}).then(function (x) { var el = $('attban'); if (el && myNav === NAV && x.counts.items + x.counts.regs) el.innerHTML = '<a href="#" data-go="/att" class="card hl" style="display:block;text-decoration:none;color:inherit"><b>✅ ' + (x.counts.items + x.counts.regs) + ' attendance items waiting for approval</b> <span class="muted">›</span></a>'; }).catch(function () {}); fillBoard(boardP, myNav); dashJcFill(date, has, myNav);
     $('dd').onchange = function () { go('/dashboard?date=' + this.value); };
     all('[data-wa]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-wa'); all('[data-wa]').forEach(function (x) { x.classList.toggle('primary', x === b); x.classList.toggle('ghost', x !== b); }); $('waText').textContent = r[k]; $('waOpen').href = waLink(k === 'whatsappOwner' ? r.owner_whatsapp : '', r[k]); $('cp').onclick = function () { copyText(r[k], this); }; }; });
     if (r.whatsappOwner) all('[data-wa]')[0].onclick(); else $('cp').onclick = function () { copyText(r.whatsapp, this); };
