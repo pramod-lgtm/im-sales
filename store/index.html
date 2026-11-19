@@ -1474,6 +1474,15 @@ function noteDetail(o) {
   if (o.kind === 'audit_day') return auditNoteDetail(d);
   return brandNoteDetail(d);
 }
+/** v38: Fusion-style SKU text from the note data (all SKUs): "Amante - total 13 pcs, MRP value 13,087" then "Bra78001-Henna-34-C-1 / ...". Same order as the server text. */
+function brandSkuText(d) {
+  var num = function (q) { q = Math.round(Number(q) * 100) / 100; return q < 0 ? '(' + q + ')' : String(q); }, val = function (v) { return inr(v).replace('₹', ''); }, key = function (i) { return i.a || String(i.p || '').split('-')[0]; };
+  return (d.brands || []).map(function (b) {
+    var sp = {}; (b.items || []).forEach(function (i) { sp[key(i)] = (sp[key(i)] || 0) + Number(i.q || 0); });
+    var list = (b.items || []).slice().sort(function (x, y) { var kx = key(x), ky = key(y); return sp[ky] - sp[kx] || (kx < ky ? -1 : kx > ky ? 1 : 0) || (x.p < y.p ? -1 : x.p > y.p ? 1 : 0); });
+    return b.name + ' - total ' + num(b.pcs) + ' pcs, MRP value ' + val(d.mv != null ? b.mv : b.value) + '\n' + (list.length ? list.map(function (i) { return (i.p || i.a) + '-' + num(i.q); }).join(' / ') : 'No sale');
+  }).join('\n\n');
+}
 /** v36: brand sale at MRP value (MRP x pcs, net of returns). Brand totals + store split, then the full item-wise table of all 4 brands (tap a header to sort). */
 function brandNoteDetail(d) {
   var num = function (q) { return String(Math.round(Number(q) * 100) / 100); }, mrpOn = d.mv != null, M = function (o) { return mrpOn ? inr(o.mv) : '–'; };
@@ -1508,14 +1517,15 @@ function brandNoteDetail(d) {
     w.querySelectorAll('[data-sk]').forEach(function (t) { t.onclick = function (ev) { ev.stopPropagation(); var k = t.getAttribute('data-sk'); st.dir = st.k === k ? -st.dir : (k === 'label' || k === 'brand' ? 1 : -1); st.k = k; paint(); }; });
     w.querySelectorAll('[data-nm]').forEach(function (b) { b.onclick = function (ev) { ev.stopPropagation(); st.mode = b.getAttribute('data-nm'); if (st.k === 'colours' && st.mode !== 'style') st.k = 'q'; paint(); }; });
   }; paint(); }); }, 0);
-  return head + brands + tbl;
+  var sku = '<div class="card"><div class="row-between"><b>SKU-wise (like Fusion)</b><span class="tiny muted">code-pcs</span></div><p class="small pre" style="margin:6px 0 0;word-break:break-word">' + h(brandSkuText(d)) + '</p></div>';
+  return head + sku + brands + tbl;
 }
 on(/^\/notes$/, function () {
   return call('notes').then(function (r) {
     if (!r.allowed) { notesBadge(null); $app.innerHTML = '<h2>🔔 Notifications</h2><div class="card">' + empty('No notifications for your login') + '</div>'; return; }
     var unread = r.rows.filter(function (x) { return !x.read; }).length; notesBadge({ unread: unread, total: r.rows.length, latest: r.rows.length ? r.rows[0].date : '' });
     $app.innerHTML = '<h2>🔔 Notifications</h2><p class="small muted">' + ((r.kinds || ['brand_day']).indexOf('brand_day') >= 0 ? 'Brand sale (Nykd, Triumph, Amante, Jockey Women) after the morning Rancelab update. ' : '') + ((r.kinds || []).indexOf('audit_day') >= 0 ? 'Store audits of the day, around 9:30 pm.' : '') + '</p>' +
-      (r.rows.length ? r.rows.map(function (x) { return '<div class="card ' + (x.read ? '' : 'hl') + '" data-note="' + x.id + '" style="cursor:pointer"><div class="row-between"><b>' + h(x.title) + '</b><span class="tiny muted">' + (x.read ? '' : '● New') + '</span></div><p class="small pre" style="margin:4px 0 0">' + h(x.body) + '</p><div class="nd"></div></div>'; }).join('') : '<div class="card">' + empty('No notifications yet.') + '</div>');
+      (r.rows.length ? r.rows.map(function (x) { return '<div class="card ' + (x.read ? '' : 'hl') + '" data-note="' + x.id + '" style="cursor:pointer"><div class="row-between"><b>' + h(x.title) + '</b><span class="tiny muted">' + (x.read ? '' : '● New') + '</span></div><p class="small pre" style="margin:4px 0 0">' + h(x.kind === 'brand_day' && String(x.body || '').length > 320 ? String(x.body).slice(0, 320).replace(/ \/ [^/]*$/, '') + ' …' : x.body) + '</p><div class="nd"></div></div>'; }).join('') : '<div class="card">' + empty('No notifications yet.') + '</div>');
     all('[data-note]').forEach(function (c) { c.onclick = function (e) {
       var box = c.querySelector('.nd'); if (box.innerHTML) { if (!e.target.closest('.nd')) box.innerHTML = ''; return; }
       box.innerHTML = '<p class="small muted">Loading…</p>';
