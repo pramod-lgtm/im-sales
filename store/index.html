@@ -1472,23 +1472,38 @@ function auditNoteDetail(d) {
 function noteDetail(o) {
   var d = o.data; if (!d) return '<p class="muted small">No detail saved.</p>';
   if (o.kind === 'audit_day') return auditNoteDetail(d);
-  var num = function (q) { return String(Math.round(Number(q) * 100) / 100); };
-  return '<p class="small"><b>All stores: ' + num(d.pcs) + ' pcs · ' + inr(d.value) + '</b></p>' + (d.brands || []).map(function (b) {
-    return '<div class="card"><div class="row-between"><b>' + h(b.name) + '</b><span><b>' + num(b.pcs) + ' pcs</b> · ' + inr(b.value) + '</span></div>' +
-      ((b.stores || []).length ? '<p class="tiny muted" style="margin:4px 0">' + b.stores.map(function (s) { return h(s.code) + ' ' + num(s.pcs) + ' pcs ' + inr(s.value); }).join(' · ') + '</p>' : '') +
-      ((b.items || []).length ? '<table class="note-items"><tr><th>Item</th><th>Size</th><th class="r">Pcs</th><th class="r">Value</th></tr>' + b.items.map(function (i) {
-        return '<tr><td>' + h(i.p || i.a) + '<br><span class="tiny muted">' + h([i.g, i.sg, i.c].filter(Boolean).join(' · ')) + '</span></td><td>' + h((i.s || '') + (i.cu ? ' ' + i.cu : '')) + '</td><td class="r">' + num(i.q) + '</td><td class="r">' + inr(i.v) + '</td></tr>';
-      }).join('') + '</table>' + (b.cut ? '<p class="tiny muted">Smallest lines left out (list too long).</p>' : '') : '<p class="small muted">No sale.</p>') + '</div>';
+  return brandNoteDetail(d);
+}
+/** v36: brand sale at MRP value (MRP x pcs, net of returns). Brand totals + store split, then the full item-wise table of all 4 brands (tap a header to sort). */
+function brandNoteDetail(d) {
+  var num = function (q) { return String(Math.round(Number(q) * 100) / 100); }, mrpOn = d.mv != null, M = function (o) { return mrpOn ? inr(o.mv) : '–'; };
+  var items = []; (d.brands || []).forEach(function (b) { (b.items || []).forEach(function (i) { items.push({ label: i.p || i.a, brand: b.name, sub: i.b && i.b !== b.name ? i.b : '', g: [i.g, i.sg].filter(Boolean).join(' · '), q: Number(i.q) || 0, mv: Number(i.mv) || 0, v: Number(i.v) || 0, mrp: i.mrp }); }); });
+  var cut = (d.brands || []).some(function (b) { return b.cut; });
+  var head = '<p class="small"><b>All stores: ' + num(d.pcs) + ' pcs · MRP value ' + M(d) + '</b>' + (d.value != null ? ' <span class="muted">(net sale ' + inr(d.value) + ')</span>' : '') + '</p>' +
+    (mrpOn ? '' : '<p class="tiny low-t">Old note: made before MRP figures; values shown are net sale.</p>');
+  var brands = (d.brands || []).map(function (b) {
+    return '<div class="card" style="margin-bottom:8px"><div class="row-between"><b>' + h(b.name) + '</b><span><b>' + num(b.pcs) + ' pcs</b> · MRP ' + (mrpOn ? inr(b.mv) : inr(b.value)) + '</span></div>' +
+      ((b.stores || []).length ? '<p class="tiny muted" style="margin:4px 0 0">' + b.stores.map(function (s) { return h(s.code) + ' ' + num(s.pcs) + ' pcs MRP ' + (mrpOn ? inr(s.mv) : inr(s.value)); }).join(' · ') + '</p>' : '<p class="tiny muted" style="margin:4px 0 0">No sale.</p>') + '</div>';
   }).join('');
+  var tbl = '<div class="card"><div class="row-between"><b>Item-wise sale (' + items.length + ' items)</b><span class="tiny muted">MRP value = MRP x pcs</span></div><div class="ni-wrap"></div>' + (cut ? '<p class="tiny muted">A few lines with the fewest pcs left out (list too long for one note).</p>' : '') + '</div>';
+  setTimeout(function () { all('.ni-wrap').forEach(function (w) { if (w.innerHTML) return; var st = { k: 'q', dir: -1 }; var paint = function () {
+    var rows = items.slice().sort(function (a, b) { var x = a[st.k], y = b[st.k]; return (typeof x === 'string' ? x.localeCompare(y) : x - y) * st.dir || b.q - a.q || b.mv - a.mv || a.label.localeCompare(b.label); });
+    var th = function (k, t, r) { return '<th class="' + (r ? 'r' : '') + '" data-sk="' + k + '" style="cursor:pointer">' + t + (st.k === k ? (st.dir < 0 ? ' ▼' : ' ▲') : '') + '</th>'; };
+    w.innerHTML = items.length ? '<table class="note-items"><tr>' + th('label', 'Item') + th('brand', 'Brand') + th('q', 'Pcs', 1) + th('mv', 'MRP value', 1) + th('v', 'Net', 1) + '</tr>' + rows.map(function (i) {
+      return '<tr><td>' + h(i.label) + (i.g ? '<br><span class="tiny muted">' + h(i.g) + '</span>' : '') + '</td><td>' + h(i.brand) + (i.sub ? '<br><span class="tiny muted">' + h(i.sub) + '</span>' : '') + '</td><td class="r"><b>' + num(i.q) + '</b></td><td class="r">' + (mrpOn ? inr(i.mv) : '–') + '</td><td class="r tiny muted">' + inr(i.v) + '</td></tr>';
+    }).join('') + '<tr><td colspan="2"><b>Total</b></td><td class="r"><b>' + num(d.pcs) + '</b></td><td class="r"><b>' + M(d) + '</b></td><td class="r tiny muted">' + inr(d.value) + '</td></tr></table>' : '<p class="small muted">No item sold.</p>';
+    w.querySelectorAll('[data-sk]').forEach(function (t) { t.onclick = function (ev) { ev.stopPropagation(); var k = t.getAttribute('data-sk'); st.dir = st.k === k ? -st.dir : (k === 'label' || k === 'brand' ? 1 : -1); st.k = k; paint(); }; });
+  }; paint(); }); }, 0);
+  return head + brands + tbl;
 }
 on(/^\/notes$/, function () {
   return call('notes').then(function (r) {
     if (!r.allowed) { notesBadge(null); $app.innerHTML = '<h2>🔔 Notifications</h2><div class="card">' + empty('No notifications for your login') + '</div>'; return; }
     var unread = r.rows.filter(function (x) { return !x.read; }).length; notesBadge({ unread: unread, total: r.rows.length, latest: r.rows.length ? r.rows[0].date : '' });
     $app.innerHTML = '<h2>🔔 Notifications</h2><p class="small muted">' + ((r.kinds || ['brand_day']).indexOf('brand_day') >= 0 ? 'Brand sale (Nykd, Triumph, Amante, Jockey Women) after the morning Rancelab update. ' : '') + ((r.kinds || []).indexOf('audit_day') >= 0 ? 'Store audits of the day, around 9:30 pm.' : '') + '</p>' +
-      (r.rows.length ? r.rows.map(function (x) { return '<div class="card ' + (x.read ? '' : 'hl') + '" data-note="' + x.id + '" style="cursor:pointer"><div class="row-between"><b>' + h(x.title) + '</b><span class="tiny muted">' + (x.read ? '' : '● New') + '</span></div><p class="small" style="margin:4px 0 0">' + h(x.body) + '</p><div class="nd"></div></div>'; }).join('') : '<div class="card">' + empty('No notifications yet.') + '</div>');
+      (r.rows.length ? r.rows.map(function (x) { return '<div class="card ' + (x.read ? '' : 'hl') + '" data-note="' + x.id + '" style="cursor:pointer"><div class="row-between"><b>' + h(x.title) + '</b><span class="tiny muted">' + (x.read ? '' : '● New') + '</span></div><p class="small pre" style="margin:4px 0 0">' + h(x.body) + '</p><div class="nd"></div></div>'; }).join('') : '<div class="card">' + empty('No notifications yet.') + '</div>');
     all('[data-note]').forEach(function (c) { c.onclick = function (e) {
-      var box = c.querySelector('.nd'); if (box.innerHTML) { if (!e.target.closest('table')) box.innerHTML = ''; return; }
+      var box = c.querySelector('.nd'); if (box.innerHTML) { if (!e.target.closest('.nd')) box.innerHTML = ''; return; }
       box.innerHTML = '<p class="small muted">Loading…</p>';
       call('noteOpen', { id: c.getAttribute('data-note') }).then(function (o) { box.innerHTML = '<div class="mt">' + noteDetail(o) + '</div>'; c.classList.remove('hl'); var t = c.querySelector('.tiny.muted'); if (t) t.textContent = ''; notesBadge(Object.assign({}, S.notes || {}, { unread: o.unread })); }).catch(function (err) { box.innerHTML = ''; fail(err); });
     }; });
