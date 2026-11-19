@@ -29,6 +29,8 @@ h2{font-size:1.3rem;margin:.2rem 0 .6rem}h3{font-size:1.02rem;margin:0 0 .6rem}h
 .adminnav a.on,.adminnav a:hover{background:rgba(255,255,255,.18);opacity:1}
 .who{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.88rem}
 .who .ghost{color:#fff;border-color:rgba(255,255,255,.45);background:transparent}
+.bell{position:relative}.bell i{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:99px;background:#fff;color:var(--brand);font-size:.7rem;font-style:normal;font-weight:800;display:grid;place-items:center;padding:0 4px}
+.note-items td{font-size:.84rem;vertical-align:top}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(30,10,40,.04)}
 .narrow{max-width:460px}
 .center{text-align:center}
@@ -383,7 +385,7 @@ function chrome(p) {
   if (!S.user) { top.classList.add('hidden'); nav.classList.add('hidden'); return; }
   top.classList.remove('hidden');
   top.innerHTML = '<a class="brand" href="#" data-go="/"><span class="logo">IM</span><span><b>IM Store</b><small>' + h(S.user.role_label) + (S.stores.length === 1 ? ' · ' + h(S.stores[0].name) : '') + '</small></span></a>' +
-    '<div class="who"><span class="hide-sm">' + h(S.user.name) + '</span><button class="ghost sm" id="lang" title="Language">' + (S.lang === 'hi' ? 'EN' : 'हिं') + '</button></div>';
+    '<div class="who"><span class="hide-sm">' + h(S.user.name) + '</span>' + (S.notes ? '<button class="ghost sm bell" id="bell" data-go="/notes" title="Notifications">🔔' + (S.notes.unread ? '<i>' + S.notes.unread + '</i>' : '') + '</button>' : '') + '<button class="ghost sm" id="lang" title="Language">' + (S.lang === 'hi' ? 'EN' : 'हिं') + '</button></div>';
   $('lang').onclick = function () { S.lang = S.lang === 'hi' ? 'en' : 'hi'; call('setLanguage', { lang: S.lang }).catch(function () {}); route(); };
   var r = S.user.role, B;
   if (r === 'owner' || r === 'auditor') B = [['/dashboard', '📊', 'Dashboard'], ['/ranking', '🏆', 'Ranking'], ['/audit', '📝', 'Audit'], ['/review', '🖼️', 'Photos'], ['/more', '☰', 'More']];
@@ -534,6 +536,7 @@ on(/^\/forgot$/, function () {
 on(/^\/home$/, function () {
   var myNav = NAV, boardP = call('awardsBoard').catch(function () { return null; });
   return call('home').catch(function (e) { if (e && (e.stale || e.missing)) throw e; fail(e); return { date: S.today, tasks: [], offers: 0, circulars: 0 }; }).then(function (r) {
+    if (r.notes !== undefined) notesBadge(r.notes);
     var first = S.user.name.split(' ')[0], tiles = [];
     var t = function (go, icon, label, hi, state, sub, dot) { return '<a class="tile ' + (state || '') + '" href="#" data-go="' + go + '"><span>' + icon + '</span>' + T(label, hi) + (sub ? '<small>' + h(sub) + '</small>' : '') + (dot ? '<i class="dot">' + dot + '</i>' : '') + '</a>'; };
     if (can('attendance')) tiles.push(t('/attendance', '🤳', r.att ? (r.att.checked_out ? 'Day done' : 'Check out') : 'Check in', 'हाज़िरी', r.att && r.att.checked_out ? 'done' : (r.att ? '' : (r.attStatus === 'weekoff' ? '' : 'todo')), r.att ? (r.att.checked_out ? 'Checked in + out ✓' : 'Checked in ✓') : (r.attStatus === 'weekoff' ? 'Week off today' : 'Selfie + GPS')));
@@ -1454,6 +1457,33 @@ on(/^\/circulars$/, function () {
   });
 });
 
+// ---------- v34 notifications (brand sale of yesterday; only logins in Settings brand_notify_users get the bell) ----------
+function notesBadge(c) { S.notes = c || null; var b = $('bell'); if (!b) { if (S.notes) chrome(location.hash.slice(1)); return; } if (!S.notes) { b.remove(); return; } var i = b.querySelector('i'); if (S.notes.unread) { if (!i) { i = document.createElement('i'); b.appendChild(i); } i.textContent = S.notes.unread; } else if (i) i.remove(); }
+function noteDetail(o) {
+  var d = o.data; if (!d) return '<p class="muted small">No detail saved.</p>';
+  var num = function (q) { return String(Math.round(Number(q) * 100) / 100); };
+  return '<p class="small"><b>All stores: ' + num(d.pcs) + ' pcs · ' + inr(d.value) + '</b></p>' + (d.brands || []).map(function (b) {
+    return '<div class="card"><div class="row-between"><b>' + h(b.name) + '</b><span><b>' + num(b.pcs) + ' pcs</b> · ' + inr(b.value) + '</span></div>' +
+      ((b.stores || []).length ? '<p class="tiny muted" style="margin:4px 0">' + b.stores.map(function (s) { return h(s.code) + ' ' + num(s.pcs) + ' pcs ' + inr(s.value); }).join(' · ') + '</p>' : '') +
+      ((b.items || []).length ? '<table class="note-items"><tr><th>Item</th><th>Size</th><th class="r">Pcs</th><th class="r">Value</th></tr>' + b.items.map(function (i) {
+        return '<tr><td>' + h(i.p || i.a) + '<br><span class="tiny muted">' + h([i.g, i.sg, i.c].filter(Boolean).join(' · ')) + '</span></td><td>' + h((i.s || '') + (i.cu ? ' ' + i.cu : '')) + '</td><td class="r">' + num(i.q) + '</td><td class="r">' + inr(i.v) + '</td></tr>';
+      }).join('') + '</table>' + (b.cut ? '<p class="tiny muted">Smallest lines left out (list too long).</p>' : '') : '<p class="small muted">No sale.</p>') + '</div>';
+  }).join('');
+}
+on(/^\/notes$/, function () {
+  return call('notes').then(function (r) {
+    if (!r.allowed) { notesBadge(null); $app.innerHTML = '<h2>🔔 Notifications</h2><div class="card">' + empty('No notifications for your login') + '</div>'; return; }
+    var unread = r.rows.filter(function (x) { return !x.read; }).length; notesBadge({ unread: unread, total: r.rows.length, latest: r.rows.length ? r.rows[0].date : '' });
+    $app.innerHTML = '<h2>🔔 Notifications</h2><p class="small muted">Nykd, Triumph, Amante and Jockey Women sale of the day, all stores, net of returns. Comes after the morning Rancelab update.</p>' +
+      (r.rows.length ? r.rows.map(function (x) { return '<div class="card ' + (x.read ? '' : 'hl') + '" data-note="' + x.id + '" style="cursor:pointer"><div class="row-between"><b>' + h(x.title) + '</b><span class="tiny muted">' + (x.read ? '' : '● New') + '</span></div><p class="small" style="margin:4px 0 0">' + h(x.body) + '</p><div class="nd"></div></div>'; }).join('') : '<div class="card">' + empty('No notifications yet. The first one comes after the next morning update.') + '</div>');
+    all('[data-note]').forEach(function (c) { c.onclick = function (e) {
+      var box = c.querySelector('.nd'); if (box.innerHTML) { if (!e.target.closest('table')) box.innerHTML = ''; return; }
+      box.innerHTML = '<p class="small muted">Loading…</p>';
+      call('noteOpen', { id: c.getAttribute('data-note') }).then(function (o) { box.innerHTML = '<div class="mt">' + noteDetail(o) + '</div>'; c.classList.remove('hl'); var t = c.querySelector('.tiny.muted'); if (t) t.textContent = ''; notesBadge(Object.assign({}, S.notes || {}, { unread: o.unread })); }).catch(function (err) { box.innerHTML = ''; fail(err); });
+    }; });
+  });
+});
+
 // ---------- lost sales ----------
 function tchips(name, list, multi) { return '<div class="chips" data-tg="' + name + '" data-multi="' + (multi ? 1 : 0) + '">' + list.map(function (v) { return '<button type="button" class="tchip" data-v="' + h(v) + '">' + h(v) + '</button>'; }).join('') + '</div>'; }
 function tval(root, name) { return Array.prototype.slice.call(root.querySelectorAll('[data-tg="' + name + '"] .tchip.on')).map(function (b) { return b.getAttribute('data-v'); }); }
@@ -2258,7 +2288,7 @@ on(/^\/phase2$/, function () {
 }, 'phase2');
 
 // ---------- start ----------
-function applyBoot(r) { S.user = r.user; S.perms = r.perms; S.stores = r.stores; S.today = r.today; S.lists = r.lists; S.lang = r.lang || 'en'; S.multi = !!r.speed; }
+function applyBoot(r) { S.notes = r.notes || null; S.user = r.user; S.perms = r.perms; S.stores = r.stores; S.today = r.today; S.lists = r.lists; S.lang = r.lang || 'en'; S.multi = !!r.speed; }
 function startScreen() { if (!location.hash || /^#\/?(login)?$/.test(location.hash)) go(S.user.role === 'owner' || S.user.role === 'auditor' ? '/dashboard' : '/home'); else route(); }
 /** Opens at once from the last saved login data on this phone, then checks with the server in the background. */
 function boot() {
